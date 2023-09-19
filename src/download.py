@@ -46,5 +46,4 @@ if __name__ == "__main__":
     parser.add_argument("-d", "--destination", type=str, help="Ruta de destino para guardar el archivo", required=True)
 
     args = parser.parse_args()
-
     download_file(args.host, args.port, args.name, args.destination)

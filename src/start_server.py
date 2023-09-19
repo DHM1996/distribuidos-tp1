@@ -65,8 +65,8 @@ def download_file(server_socket, address, file_name):
             logging.error(f"File {file_path} not found.")
             server_socket.sendto("FILE_NOT_FOUND".encode(), address)
     except Exception as e:
-        error_message = f"Error while downloading: {str(e)}"
-        server_socket.sendto(error_message.encode(), address)
+        logging.error(f"Error while downloading: {str(e)}")
+        server_socket.sendto("ERROR_DOWNLOADING_FILE".encode(), address)
 
 
 def execute():
