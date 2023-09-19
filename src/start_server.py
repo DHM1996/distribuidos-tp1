@@ -52,6 +52,23 @@ def receive_file(server_socket):
     receive_file_data(file, server_socket)
 
 
+def download_file(server_socket, address, file_name):
+    try:
+        file_path = SERVER_FOLDER + file_name
+        if os.path.exists(file_path):
+            logging.info(f"Downloading {file_path} file.")
+            with open(file_path, 'rb') as file:
+                file_data = file.read()
+            server_socket.sendto(file_data, address)
+            server_socket.sendto(str.encode("UPLOAD_END"), address)
+        else:
+            logging.error(f"File {file_path} not found.")
+            server_socket.sendto("FILE_NOT_FOUND".encode(), address)
+    except Exception as e:
+        error_message = f"Error while downloading: {str(e)}"
+        server_socket.sendto(error_message.encode(), address)
+
+
 def execute():
     server_socket = create_socket()
     while True:
@@ -61,6 +78,17 @@ def execute():
             logging.info(f"Upload start from {address}")
             receive_file(server_socket)
             logging.info("The file upload has been completed successfully")
+
+        if task.decode().split()[0] == "DOWNLOAD_START":
+            logging.info(f"Download start from {address}")
+            download_file(server_socket, address, task.decode().split()[1])
+            logging.info("The file download has been completed successfully")
+
+        else:
+            error_message = "Command not valid."
+            server_socket.send(error_message.encode())
+            server_socket.close()
+
 
 
 if __name__ == '__main__':
