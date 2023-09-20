@@ -1,49 +1,74 @@
 import argparse
 import logging
-import os
+import socket
+from conf.config import CLIENT_FOLDER, BUFFER_SIZE
 
-from upload import create_socket, close_socket
-
-BUFFER_SIZE = 1024
-
-CLIENT_FOLDER = os.getcwd() + os.sep + ".." + os.sep + "client_files" + os.sep
+logging.basicConfig(level=logging.INFO)
 
 
-def send_download_command(client_socket, file_name, server_ip, server_port):
-    command = f"DOWNLOAD_START {file_name}"
-    client_socket.sendto(command.encode(), (server_ip, server_port))
-    logging.info(f"Downloading file '{file_name}'")
+class FileDownloaderClient:
+    def __init__(self, buffer_size, client_folder):
+        self.buffer_size = buffer_size
+        self.client_folder = client_folder
 
+    def create_socket(self):
+        self.client_socket = socket.socket(
+            family=socket.AF_INET, type=socket.SOCK_DGRAM
+        )
+        logging.info("Socket created")
 
-def download_file(server_ip, server_port, file_name, destination_path):
-    client_socket = create_socket()
-    try:
-        send_download_command(client_socket, file_name, server_ip, server_port)
+    def close_socket(self):
+        self.client_socket.close()
 
-        file_data = b""
-        while True:
-            file_chunk, _ = client_socket.recvfrom(BUFFER_SIZE)
-            if file_chunk.decode() == "UPLOAD_END" or not file_chunk:
-                break
-            file_data += file_chunk
+    def send_download_command(self, file_name, server_ip, server_port):
+        command = f"DOWNLOAD_START {file_name}"
+        self.client_socket.sendto(command.encode(), (server_ip, server_port))
+        logging.info(f"Downloading file '{file_name}'")
 
-        with open(CLIENT_FOLDER + destination_path, 'wb') as file:
-            file.write(file_data)
+    def download_file(self, server_ip, server_port, file_name, destination_path):
+        self.create_socket()
+        try:
+            self.send_download_command(file_name, server_ip, server_port)
 
-        logging.info(f"Download file '{file_name}' was successful on '{destination_path}'")
+            file_data = b""
+            while True:
+                file_chunk, _ = self.client_socket.recvfrom(self.buffer_size)
+                if file_chunk.decode() == "UPLOAD_END" or not file_chunk:
+                    break
+                file_data += file_chunk
 
-    except Exception as e:
-        logging.error(f"Error while downloading: {str(e)}")
-    finally:
-        close_socket(client_socket)
+            with open(CLIENT_FOLDER + destination_path, "wb") as file:
+                file.write(file_data)
+
+            logging.info(
+                f"Download file '{file_name}' was successful on '{destination_path}'"
+            )
+
+        except Exception as e:
+            logging.error(f"Error while downloading: {str(e)}")
+        finally:
+            self.close_socket()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Cliente de descarga de archivos")
-    parser.add_argument("-H", "--host", type=str, help="Dirección IP del servidor", required=True)
-    parser.add_argument("-p", "--port", type=int, help="Puerto del servidor", required=True)
-    parser.add_argument("-n", "--name", type=str, help="Nombre del archivo a descargar", required=True)
-    parser.add_argument("-d", "--destination", type=str, help="Ruta de destino para guardar el archivo", required=True)
+    parser.add_argument(
+        "-H", "--host", type=str, help="Dirección IP del servidor", required=True
+    )
+    parser.add_argument(
+        "-p", "--port", type=int, help="Puerto del servidor", required=True
+    )
+    parser.add_argument(
+        "-n", "--name", type=str, help="Nombre del archivo a descargar", required=True
+    )
+    parser.add_argument(
+        "-d",
+        "--destination",
+        type=str,
+        help="Ruta de destino para guardar el archivo",
+        required=True,
+    )
 
     args = parser.parse_args()
-    download_file(args.host, args.port, args.name, args.destination)
+    downloader = FileDownloaderClient(BUFFER_SIZE, CLIENT_FOLDER)
+    downloader.download_file(args.host, args.port, args.name, args.destination)
