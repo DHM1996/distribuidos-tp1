@@ -62,3 +62,32 @@ class Segment:
         data = data[5:]
 
         return cls(seq_ack_number, syn, ack, fin, data)
+
+    @classmethod
+    def from_binary(cls, binary_data, max_length):
+        """
+        Split binary data into a list of Segment objects each with a defined maximum length.
+        """
+        segments = []
+
+        for i, start_byte in enumerate(range(0, len(binary_data), max_length)):
+            segment_data = binary_data[start_byte:start_byte + max_length]
+            segment = cls(i, False, False, False, segment_data)
+            segments.append(segment)
+
+        if segments:
+            segments[-1].FIN = True
+
+        return segments
+
+    @classmethod
+    def to_binary(cls, segments):
+        """
+         Join a list of Segment objects back into binary data.
+         """
+        binary_data = b""
+
+        for segment in segments:
+            binary_data += segment.get_data()
+
+        return binary_data
