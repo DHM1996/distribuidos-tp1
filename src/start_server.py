@@ -1,18 +1,22 @@
 import logging
 import socket
 import os
+from concurrent.futures import ThreadPoolExecutor
 
 from conf.config import BUFFER_SIZE, SERVER_IP, SERVER_PORT, SERVER_FOLDER, MESSAGE_OK
+from src.lib.segment import Segment
+from src.lib.stop_and_wait_protocol import StopAndWaitProtocol
 
 logging.basicConfig(level=logging.INFO)
 
 
 class FileTransferServer:
-    def __init__(self, server_ip, server_port, buffer_size, server_folder):
+    def __init__(self, server_ip, server_port, buffer_size, server_folder, max_workers):
         self.server_ip = server_ip
         self.server_port = server_port
         self.buffer_size = buffer_size
         self.server_folder = server_folder
+        self.max_workers = max_workers
         logging.basicConfig(level=logging.INFO)
 
     def create_file(self, file_name):
@@ -50,22 +54,19 @@ class FileTransferServer:
         self.receive_file_data(file)
 
     def download_file(self, address, file_name):
+        file_path = os.path.join(self.server_folder, file_name)
+        protocol = StopAndWaitProtocol(self.server_socket, address)
         try:
-            file_path = os.path.join(self.server_folder, file_name)
-            if os.path.exists(file_path):
-                logging.info(f"Downloading {file_path} file.")
-                with open(file_path, "rb") as file:
-                    file_data = file.read()
-                self.server_socket.sendto(file_data, address)
-                self.server_socket.sendto(str.encode("UPLOAD_END"), address)
-            else:
-                logging.error(f"File {file_path} not found.")
-                self.server_socket.sendto("FILE_NOT_FOUND".encode(), address)
+            protocol.send_file(file_path)
+        except FileNotFoundError as e:
+            logging.error(f"File {file_path} not found.")
+            self.server_socket.sendto("FILE_NOT_FOUND".encode(), address)
+        except ConnectionError as e:
+            logging.error(f"Connection lost for address {address}"
         except Exception as e:
             logging.error(f"Error while downloading: {str(e)}")
             self.server_socket.sendto("ERROR_DOWNLOADING_FILE".encode(), address)
-
-    def execute(self):
+    def start(self):
         self.create_socket()
         while True:
             task, address = self.server_socket.recvfrom(self.buffer_size)
@@ -88,4 +89,4 @@ class FileTransferServer:
 
 if __name__ == "__main__":
     server = FileTransferServer(SERVER_IP, SERVER_PORT, BUFFER_SIZE, SERVER_FOLDER)
-    server.execute()
+    server.start()
