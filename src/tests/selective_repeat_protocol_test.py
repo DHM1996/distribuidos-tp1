@@ -14,7 +14,7 @@ class TestSelectiveRepeat(unittest.TestCase):
         self.sender_address = ("localhost", 12345)
         self.receiver_address = ("localhost", 54321)
         self.sender = SelectiveRepeatSender(self.sender_socket, self.receiver_address, window_size=5)
-        self.receiver = SelectiveRepeatReceiver(self.receiver_socket, self.receiver_address)
+        self.receiver = SelectiveRepeatReceiver(self.receiver_socket)
 
     def tearDown(self):
         # Clean up sender and receiver sockets
@@ -32,8 +32,7 @@ class TestSelectiveRepeat(unittest.TestCase):
         receiver_thread.start()
 
         # Send the file using the sender
-        with open("test_file.txt", "rb") as file:
-            self.sender.send_file(file.name)
+        self.sender.send_file("test_file.txt")
 
         # Wait for the receiver to finish
         receiver_thread.join()

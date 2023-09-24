@@ -32,16 +32,16 @@ class SelectiveRepeatSender:
                 self.socket.sendto(segment.serialize(), self.address)
                 self.timer[self.sequence_number] = time.time()
                 if self.base == self.sequence_number:
-                    threading.Thread(target=self.timer_thread).start()
+                    threading.Thread(target=self.timer_thread(file_iterator)).start()
                 self.sequence_number += 1
             else:
                 time.sleep(0.1)
 
-    def timer_thread(self, data):
+    def timer_thread(self, file_iterator):
         while True:
             for seq_num in self.timer:
                 if time.time() - self.timer[seq_num] >= self.timeout:
-                    segment = Segment(self.sequence_number, data[self.sequence_number])
+                    segment = Segment(self.sequence_number, file_iterator.get_part(self.sequence_number))
                     self.socket.sendto(segment.serialize(), self.address)
                     self.timer[seq_num] = time.time()
 
@@ -56,8 +56,7 @@ class SelectiveRepeatSender:
 
 
 class SelectiveRepeatReceiver:
-    def __init__(self, socket, address):
-        self.address = address
+    def __init__(self, socket):
         self.socket = socket
         self.expected_seq_num = 0
 
