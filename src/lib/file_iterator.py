@@ -6,7 +6,7 @@ class FileIterator:
         self.read_size = read_size
         if not os.path.isfile(file_path):
             raise FileNotFoundError
-        self.file = open(self.file_path, 'rb')
+        self.file = open(file_path, 'rb')
 
     def __iter__(self):
         return self

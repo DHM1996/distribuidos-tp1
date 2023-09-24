@@ -5,8 +5,8 @@ class Segment:
     MAX_SIZE = 1024
     HEADER_SIZE = 5
     DATA_SIZE = MAX_SIZE - HEADER_SIZE
-    def __init__(self, seq_ack_number, data=b'', syn=False, ack=False, fin=False):
-        if len (data) > Segment.DATA_SIZE:
+    def __init__(self, seq_ack_number, data=b"", syn=False, ack=False, fin=False):
+        if len(data) > Segment.DATA_SIZE:
             raise ValueError("Segment data too large")
         self.seq_ack_number = seq_ack_number
         self.syn = syn
@@ -66,4 +66,9 @@ class Segment:
 
         data = data[5:]
 
-        return cls(seq_ack_number, syn, ack, fin, data)
+        return cls(seq_ack_number=seq_ack_number, data=data, syn=syn, ack=ack, fin=fin)
+
+    @classmethod
+    def receive_from(cls, socket):
+        data, _ = socket.recvfrom(cls.MAX_SIZE)
+        return cls.deserialize(data)
