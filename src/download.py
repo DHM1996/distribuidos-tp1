@@ -1,15 +1,16 @@
 import argparse
 import logging
 import socket
-from conf.config import CLIENT_FOLDER, BUFFER_SIZE
+from conf.config import BUFFER_SIZE
+from lib.stop_and_wait_protocol import StopAndWaitProtocol
 
 logging.basicConfig(level=logging.INFO)
 
 
 class FileDownloaderClient:
-    def __init__(self, buffer_size, client_folder):
+    def __init__(self, buffer_size):
         self.buffer_size = buffer_size
-        self.client_folder = client_folder
+        self.client_socket = None
 
     def create_socket(self):
         self.client_socket = socket.socket(
@@ -29,23 +30,15 @@ class FileDownloaderClient:
         self.create_socket()
         try:
             self.send_download_command(file_name, server_ip, server_port)
-
-            file_data = b""
-            while True:
-                file_chunk, _ = self.client_socket.recvfrom(self.buffer_size)
-                if file_chunk.decode() == "UPLOAD_END" or not file_chunk:
-                    break
-                file_data += file_chunk
-
-            with open(CLIENT_FOLDER + destination_path, "wb") as file:
-                file.write(file_data)
+            protocol = StopAndWaitProtocol(self.client_socket, (server_ip, server_port))
+            protocol.receive_to_file(destination_path)
 
             logging.info(
                 f"Download file '{file_name}' was successful on '{destination_path}'"
             )
 
-        except Exception as e:
-            logging.error(f"Error while downloading: {str(e)}")
+        #except Exception as e:
+        #    logging.error(f"Error while downloading: {str(e)}")
         finally:
             self.close_socket()
 
@@ -70,5 +63,5 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    downloader = FileDownloaderClient(BUFFER_SIZE, CLIENT_FOLDER)
+    downloader = FileDownloaderClient(BUFFER_SIZE)
     downloader.download_file(args.host, args.port, args.name, args.destination)
