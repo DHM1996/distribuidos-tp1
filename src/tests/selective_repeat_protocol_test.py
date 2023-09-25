@@ -14,7 +14,7 @@ class TestSelectiveRepeat(unittest.TestCase):
         self.sender_address = ("localhost", 12345)
         self.receiver_address = ("localhost", 54321)
         self.sender = SelectiveRepeatSender(self.sender_socket, self.receiver_address, window_size=5)
-        self.receiver = SelectiveRepeatReceiver(self.receiver_socket)
+        self.receiver = SelectiveRepeatReceiver(self.receiver_socket, self.receiver_address)
 
     def tearDown(self):
         # Clean up sender and receiver sockets
@@ -41,6 +41,28 @@ class TestSelectiveRepeat(unittest.TestCase):
         with open("received_file.txt", "rb") as received_file:
             received_data = received_file.read()
         self.assertEqual(received_data, test_data)
+
+
+    self test_packet_loss(self):
+        expected_length = 1000
+        self.sender.packet_loss_rate = 0.5
+        test_send_receive(self)
+        with open("received_file.txt", "rb") as received_file:
+                received_data = received_file.read()
+                if (len(received_data) < expected_length):
+                    logging.info(f"Packet loss detected. Expected length: {expected_length}, Received length: {len(received_data)}")
+
+        self.sender.packet_loss_rate = 0.0
+
+    def test_timeout(self):
+        self.sender.timeout = 2
+        self.test_send_receive(self)
+
+    def test_window(self):
+        self.sender.window_size = 3
+        self.test_send_receive(self)
+
+
 
 if __name__ == "__main__":
     unittest.main()
