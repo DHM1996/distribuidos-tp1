@@ -2,70 +2,65 @@ import select
 import socket
 import logging
 
+from .connection import Connection
 from .file_iterator import FileIterator
-from .segment import Segment
+from .packet import Packet
 
 logging.basicConfig(level=logging.INFO)
 
 class StopAndWaitProtocol:
-    def __init__(self, socket, address, timeout=1, retries=2):
-        self.socket = socket
-        self.address = address
-        self.timeout = timeout
-        self.max_tries = retries
+    def __init__(self, connection, retries=2):
+        self.connection = connection
+        self.max_tries = retries + 1
         self.last_seq_num = 0
 
     def send_file(self, file_path):
-        file_iterator = FileIterator(file_path, Segment.DATA_SIZE)
+        file_iterator = FileIterator(file_path, Packet.DATA_SIZE)
         sequence_number = 0
-        for segment_data in file_iterator:
-            segment = Segment(sequence_number, segment_data)
-            self.socket.sendto(segment.serialize(), self.address)
-            self.wait_ack(segment)
+        for packet_data in file_iterator:
+            packet = Packet(sequence_number, packet_data)
+            self.connection.send(packet)
+            self.wait_ack(packet)
             sequence_number += 1
 
-        fin_segment = Segment(sequence_number, fin=True)
-        self.socket.sendto(fin_segment.serialize(), self.address)
-        self.wait_ack(fin_segment)
+        fin_packet = Packet(sequence_number, fin=True)
+        self.connection.send(fin_packet)
+        self.wait_ack(fin_packet)
 
     def receive_to_file(self, file_path):
         with open(file_path, "wb") as file:
             while True:
                 try:
-                    # Receive segment
-                    ready = select.select([self.socket], [], [], self.timeout)
-                    if ready[0]:
-                        segment = Segment.receive_from(self.socket)
-                    else:
-                        raise socket.timeout
+                    # Receive packet
+                    packet = self.connection.receive()
 
-                    # If new segment, write data to file and update sequence number
-                    if segment.seq_ack_number > self.last_seq_num:
-                        file.write(segment.get_data())
-                        self.last_seq_num = segment.seq_ack_number
+                    # If new packet, write data to file and update sequence number
+                    if packet.seq_number > self.last_seq_num:
+                        file.write(packet.get_data())
+                        self.last_seq_num = packet.seq_number
 
                     # Send acknowledgement
-                    response = Segment(segment.seq_ack_number, ack=True)
-                    self.socket.sendto(response.serialize(), self.address)
+                    ack_packet = Packet(packet.seq_number, ack=True)
+                    self.connection.send(ack_packet)
 
                     # If FIN packet received, break the loop
-                    if segment.is_fin():
-                        logging.info(f"StopAndWaitProtocol: FIN packet received from {self.address}")
+                    if packet.is_fin():
+                        logging.info(f"StopAndWaitProtocol: FIN packet received from {self.connection.address}")
                         break
 
                 except socket.timeout:
-                    logging.info(f"StopAndWaitProtocol: Connection timed out for address {self.address}")
+                    logging.info(f"StopAndWaitProtocol: Connection timed out for address {self.connection.address}")
                     raise ConnectionError
 
-        logging.info(f"StopAndWaitProtocol: File successfully downloaded to {file_path} from {self.address}")
+        logging.info(f"StopAndWaitProtocol: File successfully downloaded to {file_path} from {self.connection.address}")
 
-    def wait_ack(self, segment_to_ack: Segment):
+    def wait_ack(self, packet_to_ack: Packet):
         for _ in range(self.max_tries):
             try:
                 # Wait for acknowledgment
-                segment = Segment.receive_from(self.socket)
-                if segment.is_ack() and segment.seq_ack_number == segment_to_ack.seq_ack_number:
+                packet = self.connection.receive()
+                if packet.is_ack() and packet.seq_number == packet_to_ack.seq_number:
                     return True
             except socket.timeout:
-                self.socket.sendto(segment_to_ack.serialize(), self.address)
+                self.connection.send(packet_to_ack)
         raise ConnectionError

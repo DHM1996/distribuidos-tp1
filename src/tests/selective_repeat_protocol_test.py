@@ -1,25 +1,28 @@
+import logging
 import unittest
 import socket
 import threading
-import time
 
+from src.lib.lossy_connection import LossyConnection
 from src.lib.selective_repeat_protocol import SelectiveRepeatSender, SelectiveRepeatReceiver
 
 
 class TestSelectiveRepeat(unittest.TestCase):
     def setUp(self):
         # Set up sender and receiver instances
-        self.sender_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.receiver_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.sender_address = ("localhost", 12345)
-        self.receiver_address = ("localhost", 54321)
-        self.sender = SelectiveRepeatSender(self.sender_socket, self.receiver_address, window_size=5)
-        self.receiver = SelectiveRepeatReceiver(self.receiver_socket, self.receiver_address)
+        sender_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        receiver_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sender_address = ("localhost", 12345)
+        receiver_address = ("localhost", 54321)
+        self.sender_connection = LossyConnection(sender_socket, receiver_address[0], receiver_address[1], timeout=1, loss_rate=0.0)
+        self.receiver_connection = LossyConnection(receiver_socket, sender_address[0], sender_address[1], timeout=1, loss_rate=0.0)
+        self.sender = SelectiveRepeatSender(self.sender_connection, window_size=5, timeout=1)
+        self.receiver = SelectiveRepeatReceiver(self.receiver_connection)
 
     def tearDown(self):
         # Clean up sender and receiver sockets
-        self.sender_socket.close()
-        self.receiver_socket.close()
+        self.sender_connection.close()
+        self.receiver_connection.close()
 
     def test_send_receive(self):
         # Create a file with test data
@@ -37,16 +40,16 @@ class TestSelectiveRepeat(unittest.TestCase):
         # Wait for the receiver to finish
         receiver_thread.join()
 
-        # Check if the received data matches the sent data
+        # Check if the received data matches sent data
         with open("received_file.txt", "rb") as received_file:
             received_data = received_file.read()
         self.assertEqual(received_data, test_data)
 
 
-    self test_packet_loss(self):
+    def test_packet_loss(self):
         expected_length = 1000
-        self.sender.packet_loss_rate = 0.5
-        test_send_receive(self)
+        self.sender_connection.loss_rate = 0.5
+        self.test_send_receive()
         with open("received_file.txt", "rb") as received_file:
                 received_data = received_file.read()
                 if (len(received_data) < expected_length):
@@ -56,11 +59,11 @@ class TestSelectiveRepeat(unittest.TestCase):
 
     def test_timeout(self):
         self.sender.timeout = 2
-        self.test_send_receive(self)
+        self.test_send_receive()
 
     def test_window(self):
         self.sender.window_size = 3
-        self.test_send_receive(self)
+        self.test_send_receive()
 
 
 
