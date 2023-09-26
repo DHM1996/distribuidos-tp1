@@ -1,4 +1,3 @@
-import select
 import socket
 import logging
 
@@ -8,8 +7,9 @@ from .packet import Packet
 
 logging.basicConfig(level=logging.INFO)
 
+
 class StopAndWaitProtocol:
-    def __init__(self, connection, retries=2):
+    def __init__(self, connection: Connection, retries=2):
         self.connection = connection
         self.max_tries = retries + 1
         self.last_seq_num = 0
@@ -45,14 +45,14 @@ class StopAndWaitProtocol:
 
                     # If FIN packet received, break the loop
                     if packet.is_fin():
-                        logging.info(f"StopAndWaitProtocol: FIN packet received from {self.connection.address}")
+                        logging.info(f"StopAndWaitProtocol: FIN packet received from {self.connection.ip}:{self.connection.port}")
                         break
 
                 except socket.timeout:
-                    logging.info(f"StopAndWaitProtocol: Connection timed out for address {self.connection.address}")
+                    logging.info(f"StopAndWaitProtocol: Connection timed out for address {self.connection.ip}:{self.connection.port}")
                     raise ConnectionError
 
-        logging.info(f"StopAndWaitProtocol: File successfully downloaded to {file_path} from {self.connection.address}")
+        logging.info(f"StopAndWaitProtocol: File successfully downloaded to {file_path} from {self.connection.ip}:{self.connection.port}")
 
     def wait_ack(self, packet_to_ack: Packet):
         for _ in range(self.max_tries):

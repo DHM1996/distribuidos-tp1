@@ -9,7 +9,6 @@ Los paquetes fuera de orden irán al buffer hasta que los paquetes perdidos (aqu
 import logging
 import threading
 import time
-import random
 
 from file_iterator import FileIterator
 from packet import Packet
@@ -18,7 +17,7 @@ from connection import Connection
 logging.basicConfig(level=logging.INFO)
 
 class SelectiveRepeatSender:
-    def __init__(self, connection, window_size, timeout):
+    def __init__(self, connection: Connection, window_size: int, timeout: float):
         self.connection = connection
         self.window_size = window_size
         self.base = 0
@@ -67,7 +66,7 @@ class SelectiveRepeatSender:
 
 
 class SelectiveRepeatReceiver:
-    def __init__(self, connection):
+    def __init__(self, connection: Connection):
         self.connection = connection
         self.expected_seq_num = 0
 

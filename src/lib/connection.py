@@ -5,8 +5,8 @@ from packet import Packet
 
 
 class Connection:
-    def __init__(self, connection_socket: socket, ip: str, port: int, timeout: float):
-        self.connection_socket = connection_socket
+    def __init__(self, ip: str, port: int, timeout: float):
+        self.connection_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.ip = ip
         self.port = port
         self.timeout = timeout

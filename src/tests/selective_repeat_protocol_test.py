@@ -1,6 +1,5 @@
 import logging
 import unittest
-import socket
 import threading
 
 from src.lib.lossy_connection import LossyConnection
@@ -10,12 +9,8 @@ from src.lib.selective_repeat_protocol import SelectiveRepeatSender, SelectiveRe
 class TestSelectiveRepeat(unittest.TestCase):
     def setUp(self):
         # Set up sender and receiver instances
-        sender_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        receiver_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sender_address = ("localhost", 12345)
-        receiver_address = ("localhost", 54321)
-        self.sender_connection = LossyConnection(sender_socket, receiver_address[0], receiver_address[1], timeout=1, loss_rate=0.0)
-        self.receiver_connection = LossyConnection(receiver_socket, sender_address[0], sender_address[1], timeout=1, loss_rate=0.0)
+        self.sender_connection = LossyConnection("localhost", 54321, timeout=1, loss_rate=0.0)
+        self.receiver_connection = LossyConnection("localhost", 12345, timeout=1, loss_rate=0.0)
         self.sender = SelectiveRepeatSender(self.sender_connection, window_size=5, timeout=1)
         self.receiver = SelectiveRepeatReceiver(self.receiver_connection)
 
