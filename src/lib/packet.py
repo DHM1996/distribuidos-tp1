@@ -23,7 +23,7 @@ class Packet:
     def is_fin(self):
         return self.fin
 
-    def get_seq_ack_number(self):
+    def get_seq_number(self):
         return self.seq_number
 
     def get_data(self):
@@ -67,8 +67,3 @@ class Packet:
         data = data[5:]
 
         return cls(seq_number=seq_ack_number, data=data, syn=syn, ack=ack, fin=fin)
-
-    @classmethod
-    def receive_from(cls, socket):
-        data, _ = socket.recvfrom(cls.MAX_SIZE)
-        return cls.deserialize(data)
