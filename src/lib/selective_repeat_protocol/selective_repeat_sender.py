@@ -6,8 +6,6 @@ from src.lib.connection import Connection
 from src.lib.file_iterator import FileIterator
 from src.lib.packet import Packet
 
-logging.basicConfig(level=logging.INFO)
-
 
 class SelectiveRepeatSender:
     def __init__(self, connection: Connection, window_size: int, timeout: float):
@@ -27,12 +25,13 @@ class SelectiveRepeatSender:
         # Create two threads: one for sending and one for receiving
         # The sender thread will call the send_packets method of the sender object
         # The receiver thread will call the receive_ack method of the sender object
-        sender_thread = threading.Thread(target=self.__send_file, args=file_path)
+        sender_thread = threading.Thread(target=self.__send_file, args=[file_path])
         receiver_thread = threading.Thread(target=self.receive_ack)
 
         # Start both threads
         sender_thread.start()
         receiver_thread.start()
+        logging.info('Started sender and receiver threads')
 
         if block:
             # Wait for both threads to finish
@@ -42,6 +41,7 @@ class SelectiveRepeatSender:
     def __send_file(self, file_path: str):
         file_iter = FileIterator(file_path, Packet.DATA_SIZE)
         for data in file_iter:
+            logging.info(f'Sending packet {self.next_seq_num}')
             # Wait until there is a free slot in the window
             while self.next_seq_num >= self.base + self.window_size:
                 pass
@@ -53,8 +53,10 @@ class SelectiveRepeatSender:
             self.buffer[index] = packet
 
             self.connection.send(packet)
+            logging.info(f'Sent packet {self.next_seq_num}')
             # Start the timer if it is the first packet in the window
             if self.base == self.next_seq_num:
+                logging.info(f'Starting timer for packet {self.next_seq_num}')
                 self.start_timer()
             self.next_seq_num += 1
 
@@ -67,6 +69,7 @@ class SelectiveRepeatSender:
         index = self.next_seq_num % self.window_size
         self.buffer[index] = fin_packet
         self.connection.send(fin_packet)
+        logging.info(f'Sent FIN packet {self.next_seq_num}')
         self.start_timer()
 
     def start_timer(self):
@@ -83,11 +86,13 @@ class SelectiveRepeatSender:
             if not self.acked[index]:
                 packet = self.buffer[index]
                 self.connection.send(packet)
+                logging.info(f'Resent packet {packet.get_seq_number()}')
         self.start_timer()
 
     def receive_ack(self):
         while not (self.base == self.next_seq_num):
             ack_packet = self.connection.receive()
+            logging.info(f'Received ACK packet {ack_packet.get_seq_number()}')
             if ack_packet.is_ack():
                 ack_number = ack_packet.get_seq_number()
                 if self.base <= ack_number < self.next_seq_num:

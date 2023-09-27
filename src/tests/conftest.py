@@ -8,15 +8,15 @@ from src.lib.file_iterator import FileIterator
 from src.lib.lossy_connection import LossyConnection
 
 
-@pytest.fixture()
+@pytest.fixture(scope="session")
 def sender_connection():
-    sender_connection = LossyConnection("localhost", 12345, timeout=1, loss_rate=0.0, bind_ip="localhost", bind_port=54321)
+    sender_connection = LossyConnection("localhost", 62233, timeout=1, loss_rate=0.0, bind_ip="localhost", bind_port=33226)
     yield sender_connection
     sender_connection.close()
 
-@pytest.fixture()
+@pytest.fixture(scope="session")
 def receiver_connection():
-    receiver_connection = LossyConnection("localhost", 54321, timeout=1, loss_rate=0.0, bind_ip="localhost", bind_port=12345)
+    receiver_connection = LossyConnection("localhost", 33226, timeout=1, loss_rate=0.0, bind_ip="localhost", bind_port=62233)
     yield receiver_connection
     receiver_connection.close()
 
@@ -45,6 +45,6 @@ class Helpers:
         return md5.hexdigest()
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def helpers():
     return Helpers

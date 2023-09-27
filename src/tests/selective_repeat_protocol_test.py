@@ -1,6 +1,6 @@
 from src.lib.selective_repeat_protocol import SelectiveRepeatSender, SelectiveRepeatReceiver
 
-def test_without_loss(sender_connection, receiver_connection, random_5mb_file, helpers, tmp_path):
+def test_without_loss(sender_connection, receiver_connection, random_5mb_file, tmp_path, helpers):
 
     hash_original = helpers.hash_file(random_5mb_file)
 
@@ -17,7 +17,7 @@ def test_without_loss(sender_connection, receiver_connection, random_5mb_file, h
 
     assert hash_original == hash_transmitted
 
-def test_with_loss(sender_connection, receiver_connection, random_5mb_file, helpers, tmp_path):
+def test_with_loss(sender_connection, receiver_connection, random_5mb_file, tmp_path, helpers):
 
     hash_original = helpers.hash_file(random_5mb_file)
 

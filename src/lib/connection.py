@@ -1,3 +1,4 @@
+import logging
 import select
 import socket
 
@@ -7,6 +8,7 @@ from .packet import Packet
 class Connection:
     def __init__(self, ip: str, port: int, timeout: float, bind_ip: str = None, bind_port: int = None):
         self.connection_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.connection_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.ip = ip
         self.port = port
         self.timeout = timeout
@@ -17,7 +19,6 @@ class Connection:
         self.connection_socket.sendto(packet.serialize(), (self.ip, self.port))
 
     def receive(self) -> Packet:
-        log
         ready = select.select([self.connection_socket], [], [], self.timeout)
         if ready[0]:
             packet, _ = self.connection_socket.recvfrom(Packet.MAX_SIZE)
@@ -26,4 +27,5 @@ class Connection:
         return Packet.deserialize(packet)
 
     def close(self):
+        logging.info('Closing connection')
         self.connection_socket.close()
