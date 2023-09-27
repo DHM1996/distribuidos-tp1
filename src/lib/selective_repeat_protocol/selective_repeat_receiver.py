@@ -19,7 +19,13 @@ class SelectiveRepeatReceiver:
         while True:
             packet = self.connection.receive()
             logging.info(f'Received packet {packet.seq_number}')
-            if self.expected_seq_num <= packet.seq_number < self.expected_seq_num + self.window_size:
+            if packet.is_fin():
+                logging.info('Received FIN packet')
+                ack_fin_packet = Packet(packet.seq_number, ack=True, fin=True)
+                self.connection.send(ack_fin_packet)  # Send ACK
+                # FIN packet received, stop the loop
+                break
+            elif self.expected_seq_num <= packet.seq_number < self.expected_seq_num + self.window_size:
                 # Packet is within the window
                 index = packet.seq_number - self.expected_seq_num
                 if not self.buffer[index]:
@@ -31,14 +37,11 @@ class SelectiveRepeatReceiver:
                     # Packet has already been received, resend ACK
                     ack_packet = Packet(packet.seq_number, ack=True)
                     self.connection.send(ack_packet)  # Send ACK
-            elif packet.is_fin():
-                logging.info('Received FIN packet')
-                # FIN packet received, stop the loop
-                break
             else:
-                logging.info(f"Packet {packet.seq_number} is outside the window")
-                # Packet is outside the buffer range, discard it
-                pass
+                logging.info(f"Packet {packet.seq_number} is outside the window, resend ACK")
+                # Packet is outside the buffer range, resend ACK, maybe the first ACK was lost
+                ack_packet = Packet(packet.seq_number, ack=True)
+                self.connection.send(ack_packet)  # Send ACK
 
             # Slide the window if possible
             while self.buffer[0]:

@@ -2,7 +2,7 @@ import struct
 
 
 class Packet:
-    MAX_SIZE = 1024
+    MAX_SIZE = 4 * 1024
     HEADER_SIZE = 5
     DATA_SIZE = MAX_SIZE - HEADER_SIZE
     def __init__(self, seq_number, data=b"", syn=False, ack=False, fin=False):

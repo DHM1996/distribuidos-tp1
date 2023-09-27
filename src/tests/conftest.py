@@ -1,5 +1,5 @@
 import pytest
-from random import choice
+from random import choice, randint
 from string import ascii_letters as alphabet
 import sys
 import hashlib
@@ -9,16 +9,17 @@ from src.lib.lossy_connection import LossyConnection
 
 
 @pytest.fixture(scope="session")
-def sender_connection():
-    sender_connection = LossyConnection("localhost", 62233, timeout=1, loss_rate=0.0, bind_ip="localhost", bind_port=33226)
-    yield sender_connection
+def connections():
+    sender_port = randint(1024, 65535)
+    receiver_port = randint(1024, 65535)
+    sender_connection = LossyConnection("localhost", receiver_port, timeout=5, loss_rate=0.0, bind_ip="localhost",
+                                        bind_port=sender_port)
+    receiver_connection = LossyConnection("localhost", sender_port, timeout=5, loss_rate=0.0, bind_ip="localhost",
+                                          bind_port=receiver_port)
+    yield {"sender_connection": sender_connection, "receiver_connection": receiver_connection}
     sender_connection.close()
-
-@pytest.fixture(scope="session")
-def receiver_connection():
-    receiver_connection = LossyConnection("localhost", 33226, timeout=1, loss_rate=0.0, bind_ip="localhost", bind_port=62233)
-    yield receiver_connection
     receiver_connection.close()
+
 
 @pytest.fixture()
 def random_5mb_file(tmp_path):
@@ -44,6 +45,15 @@ class Helpers:
 
         return md5.hexdigest()
 
+    @staticmethod
+    def string_to_file(string, file_path):
+        with open(file_path, 'w') as f:
+            f.write(string)
+
+    @staticmethod
+    def file_to_string(file_path):
+        with open(file_path, 'r') as f:
+            return f.read()
 
 @pytest.fixture(scope="session")
 def helpers():
