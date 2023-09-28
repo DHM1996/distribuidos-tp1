@@ -7,6 +7,7 @@ class FileIterator:
         if not os.path.isfile(file_path):
             raise FileNotFoundError
         self.file = open(file_path, 'rb')
+        self.file_path = file_path
 
     def __iter__(self):
         return self
