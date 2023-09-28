@@ -23,4 +23,4 @@ venv.bak/
 .DS_Store
 .idea/
 client_files
-server_files
+server_folder
