@@ -1,6 +1,6 @@
 import logging
 import threading
-from socket import socket
+import socket
 from typing import Optional
 
 from src.exceptions.connection_time_out import ConnectionTimeOut
@@ -73,14 +73,13 @@ class SelectiveRepeatSender:
         while self.base < self.next_seq_num:
             pass
 
-        # Send a FIN packet
-        fin_packet = Packet(self.next_seq_num, fin=True)
-        index = self.next_seq_num % self.window_size
-        self.buffer[index] = fin_packet
-        self.connection.send(fin_packet)
-        logging.info(f'Sent FIN packet {self.next_seq_num}')
-        self.is_finished = True
-        self.timer.cancel()
+        while not self.is_finished:
+            # Send a FIN packet
+            fin_packet = Packet(self.next_seq_num, fin=True)
+            index = self.next_seq_num % self.window_size
+            self.buffer[index] = fin_packet
+            self.connection.send(fin_packet)
+            logging.info(f'Sent FIN packet {self.next_seq_num}')
 
     def start_timer(self):
         if self.try_number >= self.max_tries:
@@ -109,10 +108,14 @@ class SelectiveRepeatSender:
                 ack_packet = self.connection.receive()
             except socket.timeout:
                 if self.is_finished:
+                    logging.info("ACK Timeout by finished")
                     break
                 else:
+                    logging.info("ACK Timeout")
                     raise socket.timeout
             if ack_packet.is_fin():
+                self.is_finished = True
+                self.timer.cancel()
                 break
             ack_number = ack_packet.get_seq_number()
             logging.info(f'Received ACK packet {ack_packet.get_seq_number()}')

@@ -22,6 +22,16 @@ def connections():
 
 
 @pytest.fixture()
+def random_15kb_file(tmp_path):
+    five_mb = 15 * 1024
+    file_path = tmp_path / "random_15kb_file.txt"
+    with open(file_path, 'w') as f:  # This creates a new file
+        for i in range(0, five_mb):
+            f.write(choice(alphabet))
+
+    return file_path
+
+@pytest.fixture()
 def random_5mb_file(tmp_path):
     five_mb = 5 * 1024 * 1024
     file_path = tmp_path / "random_5mb_file.txt"
