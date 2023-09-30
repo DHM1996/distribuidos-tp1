@@ -92,5 +92,5 @@ class Server:
 
 
 if __name__ == '__main__':
-    server = Server(SERVER_IP, SERVER_PORT, Protocol.STOP_AND_WAIT)
+    server = Server(SERVER_IP, SERVER_PORT, Protocol.STOP_AND_WAIT.value)
     server.run()
