@@ -8,7 +8,7 @@ from src.lib.packet import Packet
 
 
 class SelectiveRepeatReceiver:
-    def __init__(self, socket_: socket, dest_host, dest_port, window_size: int = 10, recv_queue: queue.Queue = None):
+    def __init__(self, socket_: socket, dest_host, dest_port, window_size: int = 100, recv_queue: queue.Queue = None):
         self.recv_queue = recv_queue
         self.socket = socket_
         self.dest_address = (dest_host, dest_port)
