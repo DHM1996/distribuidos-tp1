@@ -4,8 +4,6 @@ import socket
 from conf.config import BUFFER_SIZE
 from lib.stop_and_wait_protocol import StopAndWaitProtocol
 
-logging.basicConfig(level=logging.INFO)
-
 
 class FileDownloaderClient:
     def __init__(self, buffer_size):

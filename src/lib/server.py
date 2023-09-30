@@ -6,7 +6,9 @@ import threading
 from conf.config import SERVER_IP, SERVER_PORT, SERVER_FOLDER
 from lib.enums import Protocol, Action
 from lib.packet import Packet
+from lib.selective_repeat_protocol.selective_repeat_protocol import SelectiveRepeatProtocol
 from lib.stop_and_wait_protocol import StopAndWaitProtocol
+
 
 logging.basicConfig(level=logging.INFO)
 
@@ -35,15 +37,16 @@ class Server:
 
         logging.info(f"action: {action}, file_name: {file_name}")
 
-        if self.protocol == Protocol.STOP_AND_WAIT:
-
+        if self.protocol == Protocol.STOP_AND_WAIT.value:
             protocol = StopAndWaitProtocol(self.socket, dest_host, dest_port, self.clients[client_address])
+        else:
+            protocol = SelectiveRepeatProtocol(self.socket, dest_host, dest_port, self.clients[client_address])
 
-            if action == Action.UPLOAD.value:
-                protocol.receive_file(file_path)
+        if action == Action.UPLOAD.value:
+            protocol.receive_file(file_path)
 
-            elif action == Action.DOWNLOAD.value:
-                protocol.send_file(file_path)
+        elif action == Action.DOWNLOAD.value:
+            protocol.send_file(file_path)
 
         self.clients.pop(client_address)
         logging.info(f"Deleting queue for cliente with address {client_address}")
@@ -89,5 +92,5 @@ class Server:
 
 
 if __name__ == '__main__':
-    server = Server(SERVER_IP, SERVER_PORT, Protocol.STOP_AND_WAIT)
+    server = Server(SERVER_IP, SERVER_PORT, Protocol.SELECTIVE_REPEAT.value)
     server.run()
