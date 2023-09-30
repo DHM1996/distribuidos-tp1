@@ -7,8 +7,6 @@ from conf.config import BUFFER_SIZE
 from .file_iterator import FileIterator
 from .packet import Packet
 
-logging.basicConfig(level=logging.INFO)
-
 
 class StopAndWaitProtocol:
     def __init__(self, socket_: socket.socket, dest_host, dest_port, recv_queue: queue.Queue = None, retries=10):

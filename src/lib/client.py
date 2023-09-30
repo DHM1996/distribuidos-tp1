@@ -10,7 +10,7 @@ from lib.stop_and_wait_protocol import StopAndWaitProtocol
 
 from src.lib.selective_repeat_protocol.selective_repeat_protocol import SelectiveRepeatProtocol
 
-logging.basicConfig(level=logging.ERROR)
+logging.basicConfig(level=logging.INFO)
 
 
 class Client:

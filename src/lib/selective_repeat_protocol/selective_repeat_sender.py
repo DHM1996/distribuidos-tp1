@@ -11,7 +11,7 @@ from src.lib.packet import Packet
 
 
 class SelectiveRepeatSender:
-    def __init__(self, socket_: socket, dest_host, dest_port, window_size: int = 100, timeout: float = 1, max_tries=3,
+    def __init__(self, socket_: socket, dest_host, dest_port, window_size: int = 100, timeout: float = 1, max_tries=10,
                  recv_queue: queue.Queue = None):
         self.recv_queue = recv_queue
         self.socket = socket_
