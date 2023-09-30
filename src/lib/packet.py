@@ -3,9 +3,10 @@ import struct
 
 class Packet:
     MAX_SIZE = 4 * 1024
-    HEADER_SIZE = 5
+    HEADER_SIZE = 7
     DATA_SIZE = MAX_SIZE - HEADER_SIZE
-    def __init__(self, seq_number, data=b"", syn=False, ack=False, fin=False):
+
+    def __init__(self, seq_number, data=b'', syn=False, ack=False, fin=False):
         if len(data) > Packet.DATA_SIZE:
             raise ValueError("Segment data too large")
         self.seq_number = seq_number
@@ -36,10 +37,12 @@ class Packet:
         if not self.data:  # if data is empty return 0
             return 0
 
+        data = self.data
+
         checksum = 0
-        for i in range(0, len(self.data), 2):
-            if i + 1 < len(self.data):
-                temp_data = self.data[i] + (self.data[i + 1] << 8)
+        for i in range(0, len(data), 2):
+            if i + 1 < len(data):
+                temp_data = data[i] + (data[i + 1] << 8)
                 checksum += temp_data
                 checksum = (checksum & 0xffff) + (checksum >> 16)
 
@@ -49,21 +52,20 @@ class Packet:
         """
         Convert the Segment object into a binary format.
         """
-        flags = (self.syn << 2) | (self.ack << 1) | self.fin
-        header = struct.pack('!IB', self.seq_number, flags)
-        return header + self.data
+        header = struct.pack('!I???', self.seq_number, self.syn, self.ack, self.fin)
+
+        if self.data:
+            return header + self.data
+
+        return header
 
     @classmethod
     def deserialize(cls, data):
         """
         Convert a binary string back into a Segment object.
         """
-        header = struct.unpack('!IB', data[:5])
-        seq_ack_number, flags = header
-        syn = bool(flags & 4)
-        ack = bool(flags & 2)
-        fin = bool(flags & 1)
+        seq_number, syn, ack, fin = struct.unpack('!I???', data[:7])
 
-        data = data[5:]
+        data = data[7:]
 
-        return cls(seq_number=seq_ack_number, data=data, syn=syn, ack=ack, fin=fin)
+        return cls(seq_number=seq_number, data=data, syn=syn, ack=ack, fin=fin)

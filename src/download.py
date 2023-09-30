@@ -31,7 +31,7 @@ class FileDownloaderClient:
         try:
             self.send_download_command(file_name, server_ip, server_port)
             protocol = StopAndWaitProtocol(self.client_socket, (server_ip, server_port))
-            protocol.receive_to_file(destination_path)
+            protocol.receive_file(destination_path)
 
             logging.info(
                 f"Download file '{file_name}' was successful on '{destination_path}'"
