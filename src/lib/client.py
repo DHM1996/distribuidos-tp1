@@ -8,6 +8,8 @@ from lib.enums import Action, Protocol
 from lib.packet import Packet
 from lib.stop_and_wait_protocol import StopAndWaitProtocol
 
+from src.lib.selective_repeat_protocol.selective_repeat_protocol import SelectiveRepeatProtocol
+
 logging.basicConfig(level=logging.INFO)
 
 
@@ -20,8 +22,7 @@ class Client:
         if protocol == Protocol.STOP_AND_WAIT:
             self.protocol = StopAndWaitProtocol(self.socket, server_host, server_port)
         else:
-            # ToDo change for selective repeat
-            self.protocol = StopAndWaitProtocol(self.socket, server_host, server_port)
+            self.protocol = SelectiveRepeatProtocol(self.socket, server_host, server_port)
 
     @staticmethod
     def _create_socket():
@@ -63,5 +64,6 @@ if __name__ == '__main__':
     argv = sys.argv
     action = argv[1]
     file_name = argv[2]
-    client = Client(SERVER_IP, SERVER_PORT, protocol=Protocol.STOP_AND_WAIT)
+    protocol_name = argv[3]
+    client = Client(SERVER_IP, SERVER_PORT, protocol=protocol_name)
     client.run(action, file_name)

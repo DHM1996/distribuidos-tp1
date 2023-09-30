@@ -1,4 +1,5 @@
 import logging
+import queue
 import threading
 from socket import socket
 from typing import Optional
@@ -10,8 +11,11 @@ from src.lib.packet import Packet
 
 
 class SelectiveRepeatSender:
-    def __init__(self, connection: Connection, window_size: int, timeout: float, max_tries=3):
-        self.connection = connection
+    def __init__(self, socket_: socket, dest_host, dest_port, window_size: int = 10, timeout: float = 1, max_tries=3,
+                 recv_queue: queue.Queue = None):
+        self.recv_queue = recv_queue
+        self.socket = socket_
+        self.dest_address = (dest_host, dest_port)
         self.window_size = window_size
         self.timeout = timeout
         self.next_seq_num = 0
@@ -60,7 +64,7 @@ class SelectiveRepeatSender:
             self.buffer[index] = packet
             self.acked[index] = False
 
-            self.connection.send(packet)
+            self.socket.sendto(packet.serialize(), self.dest_address)
             logging.info(f'Sent packet {self.next_seq_num}')
             # Start the timer if it is the first packet in the window
             if self.window_is_empty():
@@ -77,7 +81,7 @@ class SelectiveRepeatSender:
         fin_packet = Packet(self.next_seq_num, fin=True)
         index = self.next_seq_num % self.window_size
         self.buffer[index] = fin_packet
-        self.connection.send(fin_packet)
+        self.socket.sendto(fin_packet.serialize(), self.dest_address)
         logging.info(f'Sent FIN packet {self.next_seq_num}')
         self.is_finished = True
         self.timer.cancel()
@@ -98,7 +102,7 @@ class SelectiveRepeatSender:
             index = i % self.window_size
             if not self.acked[index]:
                 packet = self.buffer[index]
-                self.connection.send(packet)
+                self.socket.sendto(packet.serialize(), self.dest_address)
                 logging.info(f'Resent packet {packet.get_seq_number()}')
         self.start_timer()
 
@@ -106,7 +110,7 @@ class SelectiveRepeatSender:
         logging.info('Started receiving ACKs')
         while True:
             try:
-                ack_packet = self.connection.receive()
+                ack_packet = self.receive_packet()
             except socket.timeout:
                 if self.is_finished:
                     break
@@ -120,7 +124,8 @@ class SelectiveRepeatSender:
                 index = ack_number % self.window_size
                 if not self.acked[index]:
                     self.acked[index] = True
-                    while self.acked[self.base % self.window_size] and not self.window_is_empty():  # Slide the window as long as there are
+                    while self.acked[
+                        self.base % self.window_size] and not self.window_is_empty():  # Slide the window as long as there are
                         # consecutive ACKs at the front of the window
                         self.acked[self.base % self.window_size] = False
                         self.base += 1
@@ -128,10 +133,19 @@ class SelectiveRepeatSender:
                         self.start_timer()
         logging.info('Finished receiving ACKs. Base: ' + str(self.base) + ', Next Seq Num: ' + str(self.next_seq_num))
 
-
     def window_is_empty(self):
         return self.base == self.next_seq_num
 
     def wait_threads(self):
         self.sender_thread.join()
         self.receiver_thread.join()
+
+    def receive_packet(self):
+        if self.recv_queue:
+            packet: Packet = self.recv_queue.get(block=True)
+            logging.info(f" Received packet with seq number {packet.seq_number} from queue")
+        else:
+            serialize_packet, address = self.socket.recvfrom(Packet.MAX_SIZE)
+            packet: Packet = Packet.deserialize(serialize_packet)
+            logging.info(f" Received packet with seq number {packet.seq_number} from thread")
+        return packet
