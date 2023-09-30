@@ -5,7 +5,6 @@ from socket import socket
 from typing import Optional
 
 from src.exceptions.connection_time_out import ConnectionTimeOut
-from src.lib.connection import Connection
 from src.lib.file_iterator import FileIterator
 from src.lib.packet import Packet
 

@@ -1,2 +1,0 @@
-from .selective_repeat_sender import SelectiveRepeatSender
-from .selective_repeat_receiver import SelectiveRepeatReceiver

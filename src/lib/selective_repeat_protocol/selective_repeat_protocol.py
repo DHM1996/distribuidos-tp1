@@ -1,10 +1,9 @@
-from src.lib.selective_repeat_protocol import SelectiveRepeatReceiver, SelectiveRepeatSender
+from lib.selective_repeat_protocol.selective_repeat_receiver import SelectiveRepeatReceiver
+from lib.selective_repeat_protocol.selective_repeat_sender import SelectiveRepeatSender
 
 
 class SelectiveRepeatProtocol:
-
-    def __int__(self, socket, server_host, server_port, recv_queue=None):
-
+    def __init__(self, socket, server_host, server_port, recv_queue=None):
         self.receiver = SelectiveRepeatReceiver(socket, server_host, server_port, recv_queue=recv_queue)
         self.sender = SelectiveRepeatSender(socket, server_host, server_port, recv_queue=recv_queue)
 

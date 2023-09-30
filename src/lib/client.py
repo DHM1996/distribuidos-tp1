@@ -10,7 +10,7 @@ from lib.stop_and_wait_protocol import StopAndWaitProtocol
 
 from src.lib.selective_repeat_protocol.selective_repeat_protocol import SelectiveRepeatProtocol
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.ERROR)
 
 
 class Client:
@@ -19,7 +19,7 @@ class Client:
         self.server_address = (server_host, server_port)
         self.socket = self._create_socket()
 
-        if protocol == Protocol.STOP_AND_WAIT:
+        if protocol == Protocol.STOP_AND_WAIT.value:
             self.protocol = StopAndWaitProtocol(self.socket, server_host, server_port)
         else:
             self.protocol = SelectiveRepeatProtocol(self.socket, server_host, server_port)
