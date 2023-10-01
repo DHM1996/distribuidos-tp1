@@ -1,4 +1,5 @@
 import logging
+import os
 import queue
 import socket
 import threading
@@ -11,15 +12,13 @@ from src.lib.selective_repeat_protocol.selective_repeat_protocol import Selectiv
 from src.lib.stop_and_wait_protocol import StopAndWaitProtocol
 
 
-logging.basicConfig(level=logging.INFO)
-
-
 class Server:
-    def __init__(self, host, port, protocol: Protocol):
+    def __init__(self, host, port, protocol: Protocol, server_folder):
         self.address = (host, port)
         self.socket = self._create_socket()
         self.clients = {}
         self.protocol = protocol
+        self.server_folder = server_folder
 
     def _create_socket(self):
         """ Create a new UDP socket in the server host and port """
@@ -34,9 +33,19 @@ class Server:
 
         data = packet.get_data().decode()
         action, file_name = data.split(",")
-        file_path = f"{SERVER_FOLDER}{file_name}"
+
+        file_path = f"{self.server_folder}{file_name}"
 
         logging.info(f"action: {action}, file_name: {file_name}")
+
+        if action == Action.DOWNLOAD.value and not os.path.isfile(file_path):
+            logging.error(f"File not found: {file_path}")
+            response: packet = Packet(ack=True, seq_number=packet.seq_number, data="File not Found".encode())
+            self.socket.sendto(response.serialize(), client_address)
+            return
+
+        response: packet = Packet(ack=True, seq_number=packet.seq_number, data="OK".encode())
+        self.socket.sendto(response.serialize(), client_address)
 
         connection = Connection(host=dest_host, port=dest_port, reception_queue=self.clients[client_address])
 
@@ -64,36 +73,40 @@ class Server:
 
         logging.info("Listening...")
 
-        while True:
-            serialized_packet, client_address = self.socket.recvfrom(Packet.MAX_SIZE)
-            packet: Packet = Packet.deserialize(serialized_packet)
+        try:
 
-            if packet.syn:
+            while True:
+                serialized_packet, client_address = self.socket.recvfrom(Packet.MAX_SIZE)
+                packet: Packet = Packet.deserialize(serialized_packet)
 
-                if client_address not in self.clients.keys():
-                    logging.info(f"New connection from client {client_address}")
-                    threading.Thread(target=self.handle_new_client, args=(packet, client_address)).start()
-                    response: packet = Packet(ack=True, seq_number=packet.seq_number, data="OK".encode())
-                    self.socket.sendto(response.serialize(), client_address)
+                if packet.syn:
 
-                else:
-                    logging.info(f"Received a sync from existent client {client_address}. The connection was rejected")
-                    self.socket.sendto("CONNECTION FAILED".encode(), client_address)
-
-            else:
-                logging.info(f"Received packet with seq_number {packet.seq_number} from {client_address}")
-                client_queue: queue.Queue = self.clients.get(client_address)
-
-                if client_queue:
-                    logging.info(f"Adding packet with seq_number {packet.seq_number} from {client_address} to queue")
-                    client_queue.put(packet)
+                    if client_address not in self.clients.keys():
+                        logging.info(f"New connection from client {client_address}")
+                        threading.Thread(target=self.handle_new_client, args=(packet, client_address)).start()
+                    else:
+                        message = f"Received a sync from existent client {client_address}. The connection was rejected"
+                        logging.info(message)
+                        self.socket.sendto(Packet(seq_number=packet.seq_number, ack=True, data=message.encode())
+                                           .serialize(), client_address)
 
                 else:
-                    logging.info(f"Received a packet without a previous syn from client {client_address}. "
-                                 f"The connection was rejected")
-                    self.socket.sendto("CONNECTION FAILED".encode(), client_address)
+                    logging.info(f"Received packet with seq_number {packet.seq_number} from {client_address}")
+                    client_queue: queue.Queue = self.clients.get(client_address)
 
+                    if client_queue:
+                        logging.info(
+                            f"Adding packet with seq_number {packet.seq_number} from {client_address} to queue")
+                        client_queue.put(packet)
 
-if __name__ == '__main__':
-    server = Server(SERVER_IP, SERVER_PORT, Protocol.SELECTIVE_REPEAT)
-    server.run()
+                    else:
+                        message = f"Received a packet without a previous syn from client {client_address}. "
+                        f"The connection was rejected"
+                        logging.info(message)
+                        self.socket.sendto(Packet(seq_number=packet.seq_number, ack=True, data=message.encode())
+                                           .serialize(), client_address)
+
+        except KeyboardInterrupt:
+            logging.error("El servidor fue interrumpido por el usuario")
+            self.socket.close()
+            exit(1)

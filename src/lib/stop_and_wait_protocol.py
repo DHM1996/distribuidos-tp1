@@ -1,5 +1,6 @@
 import logging
 
+from conf.config import TIMEOUT
 from .connection import Connection
 from .file_iterator import FileIterator
 from .packet import Packet
@@ -7,11 +8,11 @@ from ..exceptions.connection_time_out_exception import ConnectionTimeOutExceptio
 
 
 class StopAndWaitProtocol:
-    def __init__(self, connection: Connection, retries=10):
+    def __init__(self, connection: Connection, retries=10, timeout=TIMEOUT):
         self.connection = connection
         self.max_tries = retries + 1
         self.last_seq_num = -1
-        self.timeout = 2
+        self.timeout = timeout
 
     def send_file(self, file_path):
         file_iterator = FileIterator(file_path, Packet.DATA_SIZE)
@@ -30,7 +31,7 @@ class StopAndWaitProtocol:
         logging.info(f"Receiving file in file path {file_path}")
         with open(file_path, "wb") as file:
             while True:
-                packet = self.connection.receive()
+                packet = self.connection.receive(timeout=self.timeout * self.max_tries)
 
                 if packet.is_fin():
                     logging.info("Fin received")
@@ -60,4 +61,4 @@ class StopAndWaitProtocol:
             except ConnectionTimeOutException:
                 logging.info(f"Timeout with seq_number {packet.seq_number}")
                 continue
-        raise ConnectionTimeOutException(f"Connection timed out with seq_number {packet.seq_number}")
+        raise ConnectionTimeOutException(f"Action Failed: Connection timed out with seq_number {packet.seq_number}")

@@ -14,6 +14,7 @@ class SelectiveRepeatReceiver:
 
     def receive_file(self, file_path):
         logging.info(f'Receiving file {file_path}')
+
         file = open(file_path, 'wb')
 
         while True:
