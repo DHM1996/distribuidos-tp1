@@ -3,17 +3,18 @@ import queue
 import socket
 import threading
 
-from conf.config import SERVER_IP, SERVER_PORT, SERVER_FOLDER
-from lib.enums import Protocol, Action
-from lib.packet import Packet
-from lib.selective_repeat_protocol.selective_repeat_protocol import SelectiveRepeatProtocol
-from lib.stop_and_wait_protocol import StopAndWaitProtocol
+from src.conf.config import SERVER_IP, SERVER_PORT, SERVER_FOLDER
+from src.lib.connection import Connection
+from src.lib.enums import Protocol, Action
+from src.lib.packet import Packet
+from src.lib.selective_repeat_protocol.selective_repeat_protocol import SelectiveRepeatProtocol
+from src.lib.stop_and_wait_protocol import StopAndWaitProtocol
 
 
 logging.basicConfig(level=logging.INFO)
 
-class Server:
 
+class Server:
     def __init__(self, host, port, protocol: Protocol):
         self.address = (host, port)
         self.socket = self._create_socket()
@@ -37,10 +38,12 @@ class Server:
 
         logging.info(f"action: {action}, file_name: {file_name}")
 
-        if self.protocol == Protocol.STOP_AND_WAIT.value:
-            protocol = StopAndWaitProtocol(self.socket, dest_host, dest_port, self.clients[client_address])
+        connection = Connection(host=dest_host, port=dest_port, reception_queue=self.clients[client_address])
+
+        if self.protocol.value == Protocol.STOP_AND_WAIT.value:
+            protocol = StopAndWaitProtocol(connection)
         else:
-            protocol = SelectiveRepeatProtocol(self.socket, dest_host, dest_port, self.clients[client_address])
+            protocol = SelectiveRepeatProtocol(connection)
 
         if action == Action.UPLOAD.value:
             protocol.receive_file(file_path)
@@ -92,5 +95,5 @@ class Server:
 
 
 if __name__ == '__main__':
-    server = Server(SERVER_IP, SERVER_PORT, Protocol.SELECTIVE_REPEAT.value)
+    server = Server(SERVER_IP, SERVER_PORT, Protocol.SELECTIVE_REPEAT)
     server.run()

@@ -1,18 +1,14 @@
-import queue
-import select
-import socket
 import logging
 
-from conf.config import BUFFER_SIZE
+from .connection import Connection
 from .file_iterator import FileIterator
 from .packet import Packet
+from ..exceptions.connection_time_out_exception import ConnectionTimeOutException
 
 
 class StopAndWaitProtocol:
-    def __init__(self, socket_: socket.socket, dest_host, dest_port, recv_queue: queue.Queue = None, retries=10):
-        self.dest_address = (dest_host, dest_port)
-        self.socket = socket_
-        self.recv_queue = recv_queue
+    def __init__(self, connection: Connection, retries=10):
+        self.connection = connection
         self.max_tries = retries + 1
         self.last_seq_num = -1
         self.timeout = 2
@@ -34,12 +30,12 @@ class StopAndWaitProtocol:
         logging.info(f"Receiving file in file path {file_path}")
         with open(file_path, "wb") as file:
             while True:
-                packet = self.receive_packet()
+                packet = self.connection.receive()
 
                 if packet.is_fin():
                     logging.info("Fin received")
                     ack_packet = Packet(packet.seq_number, ack=True)
-                    self.socket.sendto(ack_packet.serialize(), self.dest_address)
+                    self.connection.send(ack_packet)
                     logging.info(f"ack sent for fin {packet.seq_number}")
                     break
 
@@ -48,45 +44,20 @@ class StopAndWaitProtocol:
                     self.last_seq_num = packet.seq_number
 
                 ack_packet = Packet(packet.seq_number, ack=True)
-                self.socket.sendto(ack_packet.serialize(), self.dest_address)
+                self.connection.send(ack_packet)
                 logging.info(f"ack sent for package with seq number {packet.seq_number}")
 
             logging.info(f"File {file_path} received successfully")
 
-    def receive_ack(self):
-        if self.recv_queue:
-            packet: Packet = self.recv_queue.get(block=True, timeout=self.timeout)
-            logging.info(f" Received packet with seq number {packet.seq_number} from queue")
-        else:
-            ready = select.select([self.socket], [], [], self.timeout)
-            if ready[0]:
-                serialize_packet, _ = self.socket.recvfrom(Packet.MAX_SIZE)
-                packet: Packet = Packet.deserialize(serialize_packet)
-            else:
-                raise socket.timeout
-            logging.info(f" Received packet with seq number {packet.seq_number} from thread")
-        return packet
-
-    def receive_packet(self):
-        if self.recv_queue:
-            packet: Packet = self.recv_queue.get(block=True)
-            logging.info(f" Received packet with seq number {packet.seq_number} from queue")
-        else:
-            serialize_packet, address = self.socket.recvfrom(Packet.MAX_SIZE)
-            packet: Packet = Packet.deserialize(serialize_packet)
-            logging.info(f" Received packet with seq number {packet.seq_number} from thread")
-        return packet
-
     def send_packet(self, packet: Packet):
         for _ in range(self.max_tries):
             logging.info(f"packet with seq_number {packet.seq_number} sent")
-            self.socket.sendto(packet.serialize(), self.dest_address)
+            self.connection.send(packet)
             try:
-                response = self.receive_ack()
+                response = self.connection.receive(timeout=self.timeout)
                 if response.is_ack() and response.seq_number == packet.seq_number:
                     return
-            except Exception as err:
-                logging.info(err)
+            except ConnectionTimeOutException:
                 logging.info(f"Timeout with seq_number {packet.seq_number}")
                 continue
-        raise ConnectionError
+        raise ConnectionTimeOutException(f"Connection timed out with seq_number {packet.seq_number}")

@@ -2,27 +2,26 @@ import logging
 import socket
 import sys
 
-from conf.config import SERVER_IP, SERVER_PORT, CLIENT_FOLDER
-from exceptions.client_exception import ClientException
-from lib.enums import Action, Protocol
-from lib.packet import Packet
-from lib.stop_and_wait_protocol import StopAndWaitProtocol
-
+from src.conf.config import SERVER_IP, SERVER_PORT, CLIENT_FOLDER
+from src.exceptions.client_exception import ClientException
+from src.lib.connection import Connection
+from src.lib.enums import Protocol, Action
+from src.lib.packet import Packet
 from src.lib.selective_repeat_protocol.selective_repeat_protocol import SelectiveRepeatProtocol
+from src.lib.stop_and_wait_protocol import StopAndWaitProtocol
 
 logging.basicConfig(level=logging.INFO)
 
 
 class Client:
 
-    def __init__(self, server_host, server_port, protocol: Protocol):
-        self.server_address = (server_host, server_port)
-        self.socket = self._create_socket()
+    def __init__(self, server_host, server_port, protocol: str):
+        self.connection = Connection(host=server_host, port=server_port)
 
         if protocol == Protocol.STOP_AND_WAIT.value:
-            self.protocol = StopAndWaitProtocol(self.socket, server_host, server_port)
+            self.protocol = StopAndWaitProtocol(self.connection)
         else:
-            self.protocol = SelectiveRepeatProtocol(self.socket, server_host, server_port)
+            self.protocol = SelectiveRepeatProtocol(self.connection)
 
     @staticmethod
     def _create_socket():
@@ -30,33 +29,31 @@ class Client:
         logging.info("Socket created")
         return client_socket
 
-    def _connect_with_server(self, action, file_name):
+    def _connect_with_server(self, action_to_run, file_name):
         logging.info("Trying to connect with server")
-        data = f"{action},{file_name}".encode()
-        packet: Packet = Packet(seq_number=0, syn=True, data=data)
-        serialized_packet = packet.serialize()
-        self.socket.sendto(serialized_packet, self.server_address)
-        serialized_response, address = self.socket.recvfrom(Packet.MAX_SIZE)
-        response = Packet.deserialize(serialized_response)
-        if response.ack:
+        data = f"{action_to_run},{file_name}".encode()
+        packet = Packet(seq_number=0, syn=True, data=data)
+        self.connection.send(packet)
+        response = self.connection.receive()
+        if response.is_ack():
             logging.info("Connection successfully established with server")
         else:
             logging.error(f"Connection with server failed: {response.get_data()}")
 
-    def run(self, action, file_name):
-        self._connect_with_server(action, file_name)
+    def run(self, action_to_run, file_name):
+        self._connect_with_server(action_to_run, file_name)
 
         file_path = f"{CLIENT_FOLDER}{file_name}"
 
-        if action == Action.UPLOAD.value:
+        if action_to_run == Action.UPLOAD.value:
             self.protocol.send_file(file_path)
 
-        elif action == Action.DOWNLOAD.value:
+        elif action_to_run == Action.DOWNLOAD.value:
             self.protocol.receive_file(file_path)
         else:
-            raise ClientException(f"Invalid action {action}")
+            raise ClientException(f"Invalid action {action_to_run}")
 
-        self.socket.close()
+        self.connection.close()
         logging.info("Socket closed")
 
 
