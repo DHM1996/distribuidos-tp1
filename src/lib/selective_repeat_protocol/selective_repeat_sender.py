@@ -1,9 +1,8 @@
 import os
-from datetime import datetime
+import time
 import logging
 import threading
-import socket
-from typing import Optional, Union
+from typing import Union, Optional
 
 from src.exceptions.connection_time_out_exception import ConnectionTimeOutException
 from src.lib.connection import Connection
@@ -19,14 +18,13 @@ class SelectiveRepeatSender:
         self.next_seq_num = 0
         self.base = 0
         self.timer = None
-        self.buffer: list[Optional[Packet]] = [None] * window_size
-        self.acked: list[bool] = [False] * window_size
+        self.buffer: list[Optional[list]] = [None] * window_size
         self.is_finished = False
         self.sender_thread = None
         self.receiver_thread = None
         self.max_tries = max_tries
         self.try_number = 0
-        self.package_timer: list = [None] * window_size
+        self.is_timed_out = False
 
     def send_file(self, file_path: Union[str, os.PathLike], block):
         self.__send_file_start_threads(file_path, block)
@@ -64,9 +62,7 @@ class SelectiveRepeatSender:
 
             # Store the packet in the buffer
             index = self.next_seq_num % self.window_size
-            self.buffer[index] = packet
-            self.acked[index] = False
-            self.package_timer[index] = (datetime.now(), 0)
+            self.buffer[index] = [packet, False, (time.perf_counter(), 0)]
 
             self.connection.send(packet)
             logging.debug(f'Sent packet {self.next_seq_num}')
@@ -80,53 +76,57 @@ class SelectiveRepeatSender:
         # Send a FIN packet
         fin_packet = Packet(self.next_seq_num, fin=True)
         index = self.next_seq_num % self.window_size
-        self.buffer[index] = fin_packet
+        self.buffer[index] = [fin_packet, False, (time.perf_counter(), 0)]
         self.connection.send(fin_packet)
         logging.info(f'Sent FIN packet {self.next_seq_num}')
         self.is_finished = True
 
     def manage_package_timer(self):
         while not self.is_finished:
-            for index, value in enumerate(self.package_timer):
+            time.sleep(self.timeout / 4)
+            for index, value in enumerate(self.buffer):
                 if value is None:
                     continue
 
-                (packet_time, packet_try) = value
-                time_delta = datetime.now() - packet_time
-                time_delta_seconds = time_delta.total_seconds()
+                (packet, is_ack, (packet_time, packet_try)) = value
+                delta_seconds = time.perf_counter() - packet_time
 
-                if self.buffer[index] is not None and self.acked[index] is not None and time_delta_seconds > self.timeout:
+                if (not is_ack) and delta_seconds > self.timeout:
                     if packet_try > self.max_tries:
-                        raise ConnectionTimeOutException("Packet max tries reached")
+                        logging.info(f'Packet {packet.get_seq_number()} timed out')
+                        self.is_timed_out = True
+                        return#raise ConnectionTimeOutException("Packet max tries reached")
 
-                    packet = self.buffer[index]
                     logging.debug(f'Resending packet {packet.get_seq_number()}')
                     self.connection.send(packet)
                     packet_try += 1
-                    self.package_timer[index] = (datetime.now(), packet_try)
+                    try:
+                        self.buffer[index][2] = (time.perf_counter(), packet_try)
+                    except TypeError:
+                        continue
+        logging.info('Finished managing package timer')
 
     def receive_ack(self):
         logging.info('Started receiving ACKs')
         while True:
             try:
                 ack_packet = self.connection.receive(timeout=self.timeout * self.max_tries)
-            except socket.timeout:
+            except ConnectionTimeOutException:
                 if self.is_finished:
                     break
                 else:
-                    raise socket.timeout
+                    break#raise ConnectionTimeOutException("Connection timed out from sender side")
             if ack_packet.is_fin():
                 break
             ack_number = ack_packet.get_seq_number()
             logging.debug(f'Received ACK packet {ack_packet.get_seq_number()}')
             if ack_packet.is_ack() and self.base <= ack_number < self.next_seq_num:
                 index = ack_number % self.window_size
-                if not self.acked[index]:
-                    self.acked[index] = True
+                if self.buffer[index] and not self.buffer[index][1]:
+                    self.buffer[index][1] = True
                     # Slide the window as long as there are consecutive ACKs at the front of the window
-                    while self.acked[self.base % self.window_size] and not self.window_is_empty():
-                        self.buffer[index] = None
-                        self.acked[self.base % self.window_size] = False
+                    while self.buffer[self.base % self.window_size] and self.buffer[self.base % self.window_size][1] and not self.window_is_empty():
+                        self.buffer[self.base % self.window_size] = None
                         self.base += 1
 
         logging.info('Finished receiving ACKs. Base: ' + str(self.base) + ', Next Seq Num: ' + str(self.next_seq_num))

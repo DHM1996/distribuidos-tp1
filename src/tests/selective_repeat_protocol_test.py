@@ -1,3 +1,4 @@
+import time
 from src.lib.selective_repeat_protocol.selective_repeat_receiver import SelectiveRepeatReceiver
 from src.lib.selective_repeat_protocol.selective_repeat_sender import SelectiveRepeatSender
 
@@ -93,16 +94,18 @@ def test_with_loss_big_file(connections, random_5mb_file, tmp_path, helpers):
     connections["sender_connection"].set_loss_rate(0.05)
 
     window_size = 50
-    sender = SelectiveRepeatSender(connections["sender_connection"], window_size=window_size, timeout=1)
-    receiver = SelectiveRepeatReceiver(connections["receiver_connection"], window_size=window_size)
-
+    timeout = 0.3
+    sender = SelectiveRepeatSender(connections["sender_connection"], window_size=window_size, timeout=timeout, max_tries=10)
+    receiver = SelectiveRepeatReceiver(connections["receiver_connection"], window_size=window_size, timeout=timeout*5)
+    start = time.perf_counter()
     sender.send_file(random_5mb_file, block=False)
 
     received_file_path = tmp_path / "received_file.txt"
     receiver.receive_file(received_file_path)
 
     sender.wait_threads()
-
+    end = time.perf_counter()
+    print(f"Time elapsed: {end - start}")
     hash_transmitted = helpers.hash_file(received_file_path)
 
     assert hash_original == hash_transmitted

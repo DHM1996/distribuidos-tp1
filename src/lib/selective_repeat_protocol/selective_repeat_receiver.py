@@ -1,15 +1,18 @@
 import logging
+import os
 from typing import Optional
 
+from src.exceptions.connection_time_out_exception import ConnectionTimeOutException
 from src.lib.connection import Connection
 from src.lib.packet import Packet
 
 
 class SelectiveRepeatReceiver:
-    def __init__(self, connection: Connection, window_size: int = 100):
+    def __init__(self, connection: Connection, window_size: int = 100, timeout: float = 5):
         self.connection = connection
         self.expected_seq_num = 0
         self.window_size = window_size
+        self.timeout = timeout
         self.buffer: list[Optional[Packet]] = [None] * window_size
 
     def receive_file(self, file_path):
@@ -17,7 +20,13 @@ class SelectiveRepeatReceiver:
         file = open(file_path, 'wb')
 
         while True:
-            packet = self.connection.receive()
+            try:
+                packet = self.connection.receive(timeout=self.timeout)
+            except ConnectionTimeOutException:
+                logging.info('Connection timed out')
+                file.close()
+                os.remove(file_path)
+                return
             logging.debug(f'Received packet {packet.seq_number}')
             if packet.is_fin():
                 logging.info('Received FIN packet')
@@ -44,6 +53,7 @@ class SelectiveRepeatReceiver:
 
                 logging.info(f'Slided expected sequence number to: {self.expected_seq_num}')
 
+        logging.info(f'File {file_path} received successfully')
         file.close()
 
     def is_in_window(self, seq_number: int) -> bool:
