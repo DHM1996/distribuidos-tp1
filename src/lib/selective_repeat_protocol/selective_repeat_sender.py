@@ -102,7 +102,10 @@ class SelectiveRepeatSender:
                         return#raise ConnectionTimeOutException("Packet max tries reached")
 
                     logging.info(f'Resending packet {packet.get_seq_number()}')
-                    self.connection.send(packet)
+                    try:
+                        self.connection.send(packet)
+                    except ClosedSocketException:
+                        return
                     packet_try += 1
                     try:
                         self.buffer[index][2] = (time.perf_counter(), packet_try)
@@ -120,6 +123,8 @@ class SelectiveRepeatSender:
                     break
                 else:
                     break#raise ConnectionTimeOutException("Connection timed out from sender side")
+            except ClosedSocketException:
+                return
             if ack_packet.is_fin():
                 break
             ack_number = ack_packet.get_seq_number()

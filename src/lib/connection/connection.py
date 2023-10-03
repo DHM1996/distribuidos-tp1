@@ -10,7 +10,8 @@ from lib.packet import Packet
 
 
 class Connection:
-    def __init__(self, host: str, port: int, bind_ip: str = None, bind_port: int = None, reception_queue: Queue[Packet] = None):
+    def __init__(self, host: str, port: int, bind_ip: str = None, bind_port: int = None,
+                 reception_queue: Queue[Packet] = None):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.host = host
@@ -25,7 +26,6 @@ class Connection:
         except OSError as err:
             raise ClosedSocketException()
 
-
     def receive(self, timeout=None) -> Packet:
         if self.reception_queue is not None:
             try:
@@ -33,16 +33,19 @@ class Connection:
             except queue.Empty:
                 raise ConnectionTimeOutException("Queue timeout")
         else:
-            if timeout:
-                ready = select.select([self.socket], [], [], timeout if timeout else 0)
-                if ready[0]:
+            try:
+                if timeout:
+                    ready = select.select([self.socket], [], [], timeout if timeout else 0)
+                    if ready[0]:
+                        packet, _ = self.socket.recvfrom(Packet.MAX_SIZE)
+                        packet = Packet.deserialize(packet)
+                    else:
+                        raise ConnectionTimeOutException("Socket timeout")
+                else:
                     packet, _ = self.socket.recvfrom(Packet.MAX_SIZE)
                     packet = Packet.deserialize(packet)
-                else:
-                    raise ConnectionTimeOutException("Socket timeout")
-            else:
-                packet, _ = self.socket.recvfrom(Packet.MAX_SIZE)
-                packet = Packet.deserialize(packet)
+            except (ValueError, OSError) as err:
+                raise ClosedSocketException()
         return packet
 
     def close(self):
