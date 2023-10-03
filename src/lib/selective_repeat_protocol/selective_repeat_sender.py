@@ -26,6 +26,7 @@ class SelectiveRepeatSender:
         self.max_tries = max_tries
         self.try_number = 0
         self.is_timed_out = False
+        self.lock = threading.Lock()
 
     def send_file(self, file_path: Union[str, os.PathLike], block):
         self.__send_file_start_threads(file_path, block)
@@ -66,7 +67,9 @@ class SelectiveRepeatSender:
 
             # Store the packet in the buffer
             index = self.next_seq_num % self.window_size
+            self.lock.acquire()
             self.buffer[index] = [packet, False, (time.perf_counter(), 0)]
+            self.lock.release()
             try:
                 self.connection.send(packet)
             except ClosedSocketException:
@@ -84,7 +87,9 @@ class SelectiveRepeatSender:
         # Send a FIN packet
         fin_packet = Packet(self.next_seq_num, fin=True)
         index = self.next_seq_num % self.window_size
+        self.lock.acquire()
         self.buffer[index] = [fin_packet, False, (time.perf_counter(), 0)]
+        self.lock.release()
         self.connection.send(fin_packet)
         logging.info(f'Sent FIN packet {self.next_seq_num}')
         self.is_finished = True
@@ -92,18 +97,20 @@ class SelectiveRepeatSender:
     def manage_package_timer(self):
         while not self.is_finished:
             time.sleep(self.timeout / 4)
-            for index, value in enumerate(self.buffer):
-                if value is None:
+            for index in range(self.window_size):
+                self.lock.acquire()
+                if self.buffer[index] is None:
+                    self.lock.release()
                     continue
 
-                (packet, is_ack, (packet_time, packet_try)) = value
+                (packet, is_ack, (packet_time, packet_try)) = self.buffer[index]
                 delta_seconds = time.perf_counter() - packet_time
 
                 if (not is_ack) and delta_seconds > self.timeout:
                     if packet_try > self.max_tries:
                         logging.info(f'Packet {packet.get_seq_number()} timed out')
                         self.is_timed_out = True
-                        return#raise ConnectionTimeOutException("Packet max tries reached")
+                        return
 
                     logging.info(f'Resending packet {packet.get_seq_number()}')
                     try:
@@ -114,7 +121,9 @@ class SelectiveRepeatSender:
                     try:
                         self.buffer[index][2] = (time.perf_counter(), packet_try)
                     except TypeError:
+                        self.lock.release()
                         continue
+                self.lock.release()
         logging.info('Finished managing package timer')
 
     def receive_ack(self):
@@ -133,6 +142,7 @@ class SelectiveRepeatSender:
                 break
             ack_number = ack_packet.get_seq_number()
             logging.info(f'Received ACK packet {ack_packet.get_seq_number()}')
+            self.lock.acquire()
             if ack_packet.is_ack() and self.base <= ack_number < self.next_seq_num:
                 index = ack_number % self.window_size
                 if self.buffer[index] and not self.buffer[index][1]:
@@ -141,6 +151,7 @@ class SelectiveRepeatSender:
                     while self.buffer[self.base % self.window_size] and self.buffer[self.base % self.window_size][1] and not self.window_is_empty():
                         self.buffer[self.base % self.window_size] = None
                         self.base += 1
+            self.lock.release()
 
         logging.info('Finished receiving ACKs. Base: ' + str(self.base) + ', Next Seq Num: ' + str(self.next_seq_num))
 
