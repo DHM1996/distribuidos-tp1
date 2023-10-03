@@ -1,4 +1,7 @@
-from src.lib.selective_repeat_protocol import SelectiveRepeatSender, SelectiveRepeatReceiver
+import time
+from lib.selective_repeat_protocol.selective_repeat_receiver import SelectiveRepeatReceiver
+from lib.selective_repeat_protocol.selective_repeat_sender import SelectiveRepeatSender
+
 
 def test_without_loss_little_text(connections, tmp_path, helpers):
     little_text = "HELLO WORLD! WHAT A NICE DAY! WE ARE HERE TESTING THE SELECTIVE REPEAT PROTOCOL!"
@@ -6,7 +9,7 @@ def test_without_loss_little_text(connections, tmp_path, helpers):
 
     helpers.string_to_file(little_text, file_path)
 
-    sender = SelectiveRepeatSender(connections["sender_connection"], window_size=20, timeout=0.1)
+    sender = SelectiveRepeatSender(connections["sender_connection"], window_size=20)
 
     receiver = SelectiveRepeatReceiver(connections["receiver_connection"], window_size=20)
 
@@ -21,15 +24,15 @@ def test_without_loss_little_text(connections, tmp_path, helpers):
 
     assert little_text == received_little_text
 
-def test_without_loss_big_file(connections, random_5mb_file, tmp_path, helpers):
+def test_without_loss_small_file_small_window(connections, random_25kb_file, tmp_path, helpers):
 
-    hash_original = helpers.hash_file(random_5mb_file)
+    hash_original = helpers.hash_file(random_25kb_file)
 
-    sender = SelectiveRepeatSender(connections["sender_connection"], window_size=20, timeout=0.1)
+    window_size = 3
+    sender = SelectiveRepeatSender(connections["sender_connection"], window_size=window_size, timeout=1)
+    receiver = SelectiveRepeatReceiver(connections["receiver_connection"], window_size=window_size)
 
-    receiver = SelectiveRepeatReceiver(connections["receiver_connection"], window_size=20)
-
-    sender.send_file(random_5mb_file, block=False)
+    sender.send_file(random_25kb_file, block=False)
 
     received_file_path = tmp_path / "received_file.txt"
     receiver.receive_file(received_file_path)
@@ -40,22 +43,69 @@ def test_without_loss_big_file(connections, random_5mb_file, tmp_path, helpers):
 
     assert hash_original == hash_transmitted
 
-def test_with_loss_big_file(connections, random_5mb_file, tmp_path, helpers):
 
-    hash_original = helpers.hash_file(random_5mb_file)
+def test_with_loss_small_file_small_window(connections, random_25kb_file, tmp_path, helpers):
+
+    hash_original = helpers.hash_file(random_25kb_file)
 
     connections["sender_connection"].set_loss_rate(0.05)
-    sender = SelectiveRepeatSender(connections["sender_connection"], window_size=50, timeout=0.2)
 
-    receiver = SelectiveRepeatReceiver(connections["receiver_connection"], window_size=50)
+    window_size = 3
+    sender = SelectiveRepeatSender(connections["sender_connection"], window_size=window_size, timeout=1)
+    receiver = SelectiveRepeatReceiver(connections["receiver_connection"], window_size=window_size)
 
-    sender.send_file(random_5mb_file, block=False)
+    sender.send_file(random_25kb_file, block=False)
 
     received_file_path = tmp_path / "received_file.txt"
     receiver.receive_file(received_file_path)
 
     sender.wait_threads()
 
+    hash_transmitted = helpers.hash_file(received_file_path)
+
+    assert hash_original == hash_transmitted
+
+def test_with_loss_small_file_big_window(connections, random_25kb_file, tmp_path, helpers):
+
+    hash_original = helpers.hash_file(random_25kb_file)
+
+    connections["sender_connection"].set_loss_rate(0.05)
+
+    window_size = 300
+    sender = SelectiveRepeatSender(connections["sender_connection"], window_size=window_size, timeout=1)
+    receiver = SelectiveRepeatReceiver(connections["receiver_connection"], window_size=window_size)
+
+    sender.send_file(random_25kb_file, block=False)
+
+    received_file_path = tmp_path / "received_file.txt"
+    receiver.receive_file(received_file_path)
+
+    sender.wait_threads()
+
+    hash_transmitted = helpers.hash_file(received_file_path)
+
+    assert hash_original == hash_transmitted
+
+
+def test_with_loss_big_file(connections, random_5mb_file, tmp_path, helpers):
+
+    hash_original = helpers.hash_file(random_5mb_file)
+
+    connections["sender_connection"].set_loss_rate(0.05)
+
+    window_size = 50
+    timeout = 0.3
+    sender = SelectiveRepeatSender(connections["sender_connection"], window_size=window_size, timeout=timeout, max_tries=10)
+    receiver = SelectiveRepeatReceiver(connections["receiver_connection"], window_size=window_size, timeout=timeout*5)
+    start = time.perf_counter()
+    sender.send_file(random_5mb_file, block=False)
+
+    received_file_path = tmp_path / "received_file.txt"
+    receiver.receive_file(received_file_path)
+
+    sender.wait_threads()
+    end = time.perf_counter()
+    print(f"Time elapsed: {end - start}")
     hash_transmitted = helpers.hash_file(received_file_path)
 
     assert hash_original == hash_transmitted

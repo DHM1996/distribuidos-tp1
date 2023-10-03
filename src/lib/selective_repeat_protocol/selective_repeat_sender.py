@@ -1,42 +1,40 @@
-from datetime import datetime
+import os
+import time
 import logging
-import queue
 import threading
-from socket import socket
-from typing import Optional
+from typing import Union, Optional
 
-from src.exceptions.connection_time_out import ConnectionTimeOut
-from src.lib.file_iterator import FileIterator
-from src.lib.packet import Packet
+from exceptions.closed_socket_exception import ClosedSocketException
+from exceptions.connection_time_out_exception import ConnectionTimeOutException
+from lib.connection import Connection
+from lib.file_iterator import FileIterator
+from lib.packet import Packet
 
 
 class SelectiveRepeatSender:
-    def __init__(self, socket_: socket, dest_host, dest_port, window_size: int = 100, timeout: float = 1, max_tries=10,
-                 recv_queue: queue.Queue = None):
-        self.recv_queue = recv_queue
-        self.socket = socket_
-        self.dest_address = (dest_host, dest_port)
+    def __init__(self, connection: Connection, window_size: int = 30, timeout: float = 1, max_tries=10):
+        self.connection = connection
         self.window_size = window_size
         self.timeout = timeout
         self.next_seq_num = 0
         self.base = 0
         self.timer = None
-        self.buffer: list[Optional[Packet]] = [None] * window_size
-        self.acked = [False] * window_size
+        self.buffer: list[Optional[list]] = [None] * window_size
         self.is_finished = False
         self.sender_thread = None
         self.receiver_thread = None
         self.max_tries = max_tries
         self.try_number = 0
-        self.package_timer: list = [None] * window_size
+        self.is_timed_out = False
 
-    def send_file(self, file_path: str, block=True):
+    def send_file(self, file_path: Union[str, os.PathLike], block):
         self.__send_file_start_threads(file_path, block)
 
     def __send_file_start_threads(self, file_path, block=True):
-        # Create two threads: one for sending and one for receiving
+        # Create three threads: one for sending packets, one for receiving ACKs and one for managing the package timer
         # The sender thread will call the send_packets method of the sender object
         # The receiver thread will call the receive_ack method of the sender object
+        # The timer thread will call the manage_package_timer method of the sender object
         self.sender_thread = threading.Thread(target=self.__send_file, args=[file_path])
         self.receiver_thread = threading.Thread(target=self.receive_ack)
         self.timer = threading.Thread(target=self.manage_package_timer)
@@ -54,79 +52,94 @@ class SelectiveRepeatSender:
             self.timer.join()
 
     def __send_file(self, file_path: str):
+
         file_iter = FileIterator(file_path, Packet.DATA_SIZE)
         for data in file_iter:
             logging.info(f'Sending packet {self.next_seq_num}')
             # Wait until there is a free slot in the window
             while self.next_seq_num >= self.base + self.window_size:
+                if self.is_timed_out:
+                    return
                 pass
 
             packet = Packet(self.next_seq_num, data=data)
 
             # Store the packet in the buffer
             index = self.next_seq_num % self.window_size
-            self.buffer[index] = packet
-            self.acked[index] = False
-            self.package_timer[index] = (datetime.now(), 0)
-
-            self.socket.sendto(packet.serialize(), self.dest_address)
+            self.buffer[index] = [packet, False, (time.perf_counter(), 0)]
+            try:
+                self.connection.send(packet)
+            except ClosedSocketException:
+                return
             logging.info(f'Sent packet {self.next_seq_num}')
             self.next_seq_num += 1
 
         # Wait until all packets are acknowledged
         logging.info('Waiting for all packets to be acknowledged')
         while self.base < self.next_seq_num:
+            if self.is_timed_out:
+                return
             pass
 
         # Send a FIN packet
         fin_packet = Packet(self.next_seq_num, fin=True)
         index = self.next_seq_num % self.window_size
-        self.buffer[index] = fin_packet
-        self.socket.sendto(fin_packet.serialize(), self.dest_address)
+        self.buffer[index] = [fin_packet, False, (time.perf_counter(), 0)]
+        self.connection.send(fin_packet)
         logging.info(f'Sent FIN packet {self.next_seq_num}')
         self.is_finished = True
 
     def manage_package_timer(self):
         while not self.is_finished:
-            for index, value in enumerate(self.package_timer):
+            time.sleep(self.timeout / 4)
+            for index, value in enumerate(self.buffer):
                 if value is None:
                     continue
 
-                (packet_time, packet_try) = value
-                time_delta = datetime.now() - packet_time
-                time_delta_seconds = time_delta.total_seconds()
+                (packet, is_ack, (packet_time, packet_try)) = value
+                delta_seconds = time.perf_counter() - packet_time
 
-                if time_delta_seconds > self.timeout and self.buffer[index] is not None and not self.acked[index]:
+                if (not is_ack) and delta_seconds > self.timeout:
                     if packet_try > self.max_tries:
-                        raise ConnectionTimeOut("Packet max tries reached")
+                        logging.info(f'Packet {packet.get_seq_number()} timed out')
+                        self.is_timed_out = True
+                        return#raise ConnectionTimeOutException("Packet max tries reached")
 
-                    packet = self.buffer[index]
-                    self.socket.sendto(packet.serialize(), self.dest_address)
+                    logging.info(f'Resending packet {packet.get_seq_number()}')
+                    try:
+                        self.connection.send(packet)
+                    except ClosedSocketException:
+                        return
                     packet_try += 1
-                    self.package_timer[index] = (datetime.now(), packet_try)
+                    try:
+                        self.buffer[index][2] = (time.perf_counter(), packet_try)
+                    except TypeError:
+                        continue
+        logging.info('Finished managing package timer')
 
     def receive_ack(self):
         logging.info('Started receiving ACKs')
         while True:
             try:
-                ack_packet = self.receive_packet()
-            except socket.timeout:
+                ack_packet = self.connection.receive(timeout=self.timeout * self.max_tries)
+            except ConnectionTimeOutException:
                 if self.is_finished:
                     break
                 else:
-                    raise socket.timeout
+                    break#raise ConnectionTimeOutException("Connection timed out from sender side")
+            except ClosedSocketException:
+                return
             if ack_packet.is_fin():
                 break
             ack_number = ack_packet.get_seq_number()
             logging.info(f'Received ACK packet {ack_packet.get_seq_number()}')
             if ack_packet.is_ack() and self.base <= ack_number < self.next_seq_num:
                 index = ack_number % self.window_size
-                if not self.acked[index]:
-                    self.acked[index] = True
+                if self.buffer[index] and not self.buffer[index][1]:
+                    self.buffer[index][1] = True
                     # Slide the window as long as there are consecutive ACKs at the front of the window
-                    while self.acked[self.base % self.window_size] and not self.window_is_empty():
-                        self.buffer[index] = None
-                        self.acked[self.base % self.window_size] = False
+                    while self.buffer[self.base % self.window_size] and self.buffer[self.base % self.window_size][1] and not self.window_is_empty():
+                        self.buffer[self.base % self.window_size] = None
                         self.base += 1
 
         logging.info('Finished receiving ACKs. Base: ' + str(self.base) + ', Next Seq Num: ' + str(self.next_seq_num))
@@ -137,13 +150,3 @@ class SelectiveRepeatSender:
     def wait_threads(self):
         self.sender_thread.join()
         self.receiver_thread.join()
-
-    def receive_packet(self):
-        if self.recv_queue:
-            packet: Packet = self.recv_queue.get(block=True)
-            logging.info(f" Received packet with seq number {packet.seq_number} from queue")
-        else:
-            serialize_packet, address = self.socket.recvfrom(Packet.MAX_SIZE)
-            packet: Packet = Packet.deserialize(serialize_packet)
-            logging.info(f" Received packet with seq number {packet.seq_number} from thread")
-        return packet
