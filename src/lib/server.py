@@ -86,10 +86,10 @@ class Server:
                         logging.info(f"New connection from client {client_address}")
                         threading.Thread(target=self.handle_new_client, args=(packet, client_address)).start()
                     else:
-                        message = f"Received a sync from existent client {client_address}. The connection was rejected"
+                        message = f"Received a sync from existent client {client_address}. Send ack again"
                         logging.info(message)
-                        self.socket.sendto(Packet(seq_number=packet.seq_number, ack=True, data=message.encode())
-                                           .serialize(), client_address)
+                        response: packet = Packet(ack=True, seq_number=packet.seq_number, data="OK".encode())
+                        self.socket.sendto(response.serialize(), client_address)
 
                 else:
                     logging.info(f"Received packet with seq_number {packet.seq_number} from {client_address}")

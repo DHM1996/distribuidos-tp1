@@ -87,7 +87,6 @@ class SelectiveRepeatSender:
         self.buffer[index] = [fin_packet, False, (time.perf_counter(), 0)]
         self.connection.send(fin_packet)
         logging.info(f'Sent FIN packet {self.next_seq_num}')
-        self.is_finished = True
 
     def manage_package_timer(self):
         while not self.is_finished:
@@ -123,13 +122,11 @@ class SelectiveRepeatSender:
             try:
                 ack_packet = self.connection.receive(timeout=self.timeout * self.max_tries)
             except ConnectionTimeOutException:
-                if self.is_finished:
-                    break
-                else:
-                    break#raise ConnectionTimeOutException("Connection timed out from sender side")
+               break
             except ClosedSocketException:
                 return
             if ack_packet.is_fin():
+                self.is_finished = True
                 break
             ack_number = ack_packet.get_seq_number()
             logging.info(f'Received ACK packet {ack_packet.get_seq_number()}')
