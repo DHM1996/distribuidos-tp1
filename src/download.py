@@ -41,7 +41,7 @@ if __name__ == '__main__':
     else:
         logging.basicConfig(level=logging.INFO)
 
-    client = Client(SERVER_IP, SERVER_PORT, protocol=args.protocol)
+    client = Client(server_host=args.host, server_port=args.port, protocol=args.protocol)
 
     client.run(Action.DOWNLOAD.value, args.dst, args.name)
 

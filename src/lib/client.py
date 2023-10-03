@@ -50,7 +50,7 @@ class Client:
 
     def run(self, action_to_run, file_src, file_name):
 
-        file_path = f"{file_src}{file_name}"
+        file_path = f"{file_src}/{file_name}"
 
         try:
             if action_to_run == Action.UPLOAD.value and not os.path.isfile(file_path):
