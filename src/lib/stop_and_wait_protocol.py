@@ -1,10 +1,10 @@
 import logging
 
 from conf.config import TIMEOUT
-from .connection import Connection
-from .file_iterator import FileIterator
-from .packet import Packet
-from ..exceptions.connection_time_out_exception import ConnectionTimeOutException
+from lib.connection import Connection
+from lib.file_iterator import FileIterator
+from lib.packet import Packet
+from exceptions.connection_time_out_exception import ConnectionTimeOutException
 
 
 class StopAndWaitProtocol:

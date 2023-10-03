@@ -1,7 +1,7 @@
 from random import random
 
-from src.lib.packet import Packet
-from src.lib.connection import Connection
+from lib.packet import Packet
+from lib.connection import Connection
 
 
 class LossyConnection(Connection):

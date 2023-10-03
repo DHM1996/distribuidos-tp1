@@ -1,6 +1,6 @@
 import time
-from src.lib.selective_repeat_protocol.selective_repeat_receiver import SelectiveRepeatReceiver
-from src.lib.selective_repeat_protocol.selective_repeat_sender import SelectiveRepeatSender
+from lib.selective_repeat_protocol.selective_repeat_receiver import SelectiveRepeatReceiver
+from lib.selective_repeat_protocol.selective_repeat_sender import SelectiveRepeatSender
 
 
 def test_without_loss_little_text(connections, tmp_path, helpers):

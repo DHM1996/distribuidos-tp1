@@ -3,8 +3,8 @@ from random import choice, randint
 from string import ascii_letters as alphabet
 import hashlib
 
-from src.lib.file_iterator import FileIterator
-from src.lib.connection.lossy_connection import LossyConnection
+from lib.file_iterator import FileIterator
+from lib.connection.lossy_connection import LossyConnection
 
 
 @pytest.fixture(scope="session")

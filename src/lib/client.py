@@ -1,15 +1,15 @@
 import logging
 import os
 import socket
-from src.exceptions.connection_time_out_exception import ConnectionTimeOutException
+from exceptions.connection_time_out_exception import ConnectionTimeOutException
 from exceptions.server_exception import ServerException
-from src.conf.config import MAX_CONNECTION_ATTEMPTS, TIMEOUT
-from src.exceptions.client_exception import ClientException
-from src.lib.connection import Connection
-from src.lib.enums import Protocol, Action
-from src.lib.packet import Packet
-from src.lib.selective_repeat_protocol.selective_repeat_protocol import SelectiveRepeatProtocol
-from src.lib.stop_and_wait_protocol import StopAndWaitProtocol
+from conf.config import MAX_CONNECTION_ATTEMPTS, TIMEOUT
+from exceptions.client_exception import ClientException
+from lib.connection import Connection
+from lib.enums import Protocol, Action
+from lib.packet import Packet
+from lib.selective_repeat_protocol.selective_repeat_protocol import SelectiveRepeatProtocol
+from lib.stop_and_wait_protocol import StopAndWaitProtocol
 
 
 class Client:
@@ -43,7 +43,7 @@ class Client:
                     logging.info("Connection successfully established with server")
                     return
                 else:
-                    raise ServerException(response.data)
+                    raise ServerException(response.data.decode())
             except ConnectionTimeOutException as err:
                 continue
         raise ServerException("Connection to server failed")

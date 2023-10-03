@@ -2,13 +2,13 @@ import logging
 import os
 from typing import Optional
 
-from src.exceptions.connection_time_out_exception import ConnectionTimeOutException
-from src.lib.connection import Connection
-from src.lib.packet import Packet
+from exceptions.connection_time_out_exception import ConnectionTimeOutException
+from lib.connection import Connection
+from lib.packet import Packet
 
 
 class SelectiveRepeatReceiver:
-    def __init__(self, connection: Connection, window_size: int = 100, timeout: float = 5):
+    def __init__(self, connection: Connection, window_size: int = 100, timeout: float = 10):
         self.connection = connection
         self.expected_seq_num = 0
         self.window_size = window_size
@@ -28,7 +28,7 @@ class SelectiveRepeatReceiver:
                 file.close()
                 os.remove(file_path)
                 return
-            logging.debug(f'Received packet {packet.seq_number}')
+            logging.info(f'Received packet {packet.seq_number}')
             if packet.is_fin():
                 logging.info('Received FIN packet')
                 ack_fin_packet = Packet(packet.seq_number, ack=True, fin=True)
@@ -41,7 +41,7 @@ class SelectiveRepeatReceiver:
                 # Packet has not been received before
                 self.buffer[index] = packet
 
-            logging.debug(f'Sending ACK for packet {packet.seq_number}')
+            logging.info(f'Sending ACK for packet {packet.seq_number}')
             ack_packet = Packet(packet.seq_number, ack=True)
             self.connection.send(ack_packet)  # Send ACK
 

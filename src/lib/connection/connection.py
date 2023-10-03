@@ -4,8 +4,9 @@ import select
 import socket
 from queue import Queue
 
-from src.exceptions.connection_time_out_exception import ConnectionTimeOutException
-from src.lib.packet import Packet
+from exceptions.closed_socket_exception import ClosedSocketException
+from exceptions.connection_time_out_exception import ConnectionTimeOutException
+from lib.packet import Packet
 
 
 class Connection:
@@ -19,7 +20,11 @@ class Connection:
         self.reception_queue = reception_queue
 
     def send(self, packet: Packet):
-        self.socket.sendto(packet.serialize(), (self.host, self.port))
+        try:
+            self.socket.sendto(packet.serialize(), (self.host, self.port))
+        except OSError as err:
+            raise ClosedSocketException()
+
 
     def receive(self, timeout=None) -> Packet:
         if self.reception_queue is not None:

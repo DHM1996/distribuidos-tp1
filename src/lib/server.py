@@ -4,12 +4,12 @@ import queue
 import socket
 import threading
 
-from src.conf.config import SERVER_IP, SERVER_PORT, SERVER_FOLDER
-from src.lib.connection import Connection
-from src.lib.enums import Protocol, Action
-from src.lib.packet import Packet
-from src.lib.selective_repeat_protocol.selective_repeat_protocol import SelectiveRepeatProtocol
-from src.lib.stop_and_wait_protocol import StopAndWaitProtocol
+from conf.config import SERVER_IP, SERVER_PORT, SERVER_FOLDER
+from lib.connection import Connection
+from lib.enums import Protocol, Action
+from lib.packet import Packet
+from lib.selective_repeat_protocol.selective_repeat_protocol import SelectiveRepeatProtocol
+from lib.stop_and_wait_protocol import StopAndWaitProtocol
 
 
 class Server:
@@ -107,6 +107,6 @@ class Server:
                                            .serialize(), client_address)
 
         except KeyboardInterrupt:
-            logging.error("El servidor fue interrumpido por el usuario")
+            logging.error("El servidor fue interrumpido por el usuario. Se cierra el socket.")
             self.socket.close()
             exit(1)

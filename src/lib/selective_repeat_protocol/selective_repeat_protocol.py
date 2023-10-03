@@ -1,9 +1,9 @@
 import os
 from typing import Union
 
-from src.lib.connection import Connection
-from src.lib.selective_repeat_protocol.selective_repeat_receiver import SelectiveRepeatReceiver
-from src.lib.selective_repeat_protocol.selective_repeat_sender import SelectiveRepeatSender
+from lib.connection import Connection
+from lib.selective_repeat_protocol.selective_repeat_receiver import SelectiveRepeatReceiver
+from lib.selective_repeat_protocol.selective_repeat_sender import SelectiveRepeatSender
 
 
 class SelectiveRepeatProtocol:

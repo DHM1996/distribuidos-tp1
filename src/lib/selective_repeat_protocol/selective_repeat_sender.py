@@ -4,10 +4,11 @@ import logging
 import threading
 from typing import Union, Optional
 
-from src.exceptions.connection_time_out_exception import ConnectionTimeOutException
-from src.lib.connection import Connection
-from src.lib.file_iterator import FileIterator
-from src.lib.packet import Packet
+from exceptions.closed_socket_exception import ClosedSocketException
+from exceptions.connection_time_out_exception import ConnectionTimeOutException
+from lib.connection import Connection
+from lib.file_iterator import FileIterator
+from lib.packet import Packet
 
 
 class SelectiveRepeatSender:
@@ -51,9 +52,10 @@ class SelectiveRepeatSender:
             self.timer.join()
 
     def __send_file(self, file_path: str):
+
         file_iter = FileIterator(file_path, Packet.DATA_SIZE)
         for data in file_iter:
-            logging.debug(f'Sending packet {self.next_seq_num}')
+            logging.info(f'Sending packet {self.next_seq_num}')
             # Wait until there is a free slot in the window
             while self.next_seq_num >= self.base + self.window_size:
                 pass
@@ -63,9 +65,11 @@ class SelectiveRepeatSender:
             # Store the packet in the buffer
             index = self.next_seq_num % self.window_size
             self.buffer[index] = [packet, False, (time.perf_counter(), 0)]
-
-            self.connection.send(packet)
-            logging.debug(f'Sent packet {self.next_seq_num}')
+            try:
+                self.connection.send(packet)
+            except ClosedSocketException:
+                return
+            logging.info(f'Sent packet {self.next_seq_num}')
             self.next_seq_num += 1
 
         # Wait until all packets are acknowledged
@@ -97,7 +101,7 @@ class SelectiveRepeatSender:
                         self.is_timed_out = True
                         return#raise ConnectionTimeOutException("Packet max tries reached")
 
-                    logging.debug(f'Resending packet {packet.get_seq_number()}')
+                    logging.info(f'Resending packet {packet.get_seq_number()}')
                     self.connection.send(packet)
                     packet_try += 1
                     try:
@@ -119,7 +123,7 @@ class SelectiveRepeatSender:
             if ack_packet.is_fin():
                 break
             ack_number = ack_packet.get_seq_number()
-            logging.debug(f'Received ACK packet {ack_packet.get_seq_number()}')
+            logging.info(f'Received ACK packet {ack_packet.get_seq_number()}')
             if ack_packet.is_ack() and self.base <= ack_number < self.next_seq_num:
                 index = ack_number % self.window_size
                 if self.buffer[index] and not self.buffer[index][1]:
