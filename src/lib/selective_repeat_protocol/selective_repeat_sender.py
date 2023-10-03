@@ -12,7 +12,7 @@ from lib.packet import Packet
 
 
 class SelectiveRepeatSender:
-    def __init__(self, connection: Connection, window_size: int = 100, timeout: float = 1, max_tries=10):
+    def __init__(self, connection: Connection, window_size: int = 30, timeout: float = 1, max_tries=10):
         self.connection = connection
         self.window_size = window_size
         self.timeout = timeout
@@ -58,6 +58,8 @@ class SelectiveRepeatSender:
             logging.info(f'Sending packet {self.next_seq_num}')
             # Wait until there is a free slot in the window
             while self.next_seq_num >= self.base + self.window_size:
+                if self.is_timed_out:
+                    return
                 pass
 
             packet = Packet(self.next_seq_num, data=data)
@@ -75,6 +77,8 @@ class SelectiveRepeatSender:
         # Wait until all packets are acknowledged
         logging.info('Waiting for all packets to be acknowledged')
         while self.base < self.next_seq_num:
+            if self.is_timed_out:
+                return
             pass
 
         # Send a FIN packet

@@ -60,6 +60,7 @@ class Server:
         elif action == Action.DOWNLOAD.value:
             protocol.send_file(file_path)
 
+        connection.close()
         self.clients.pop(client_address)
         logging.info(f"Deleting queue for cliente with address {client_address}")
 
